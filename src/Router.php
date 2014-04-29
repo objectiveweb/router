@@ -145,7 +145,7 @@ class Router {
     }
 
     public static function redirect($to) {
-        header('Location: ' . url($to, true));
+        header('Location: ' . Router::url($to, true));
         exit();
     }
 
