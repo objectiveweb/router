@@ -35,7 +35,7 @@ class Router {
             try {
                 $response = call_user_func_array($callback, $params);
                 if ($response !== NULL) {
-                    respond($response);
+                    Router::respond($response);
                 }
             }
             catch (Exception $ex) {
