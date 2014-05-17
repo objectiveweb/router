@@ -61,7 +61,7 @@ class Router {
      * @param bool $return if false (default) prints the url, if true returns the url as string
      * @return string
      */
-    public static function url($str = null, $return = false) {
+    public static function url($str = null, $return = true) {
         if ($str == 'self' || $str === null) {
             if (
                 isset($_SERVER['HTTPS']) && ($_SERVER['HTTPS'] == 'on' || $_SERVER['HTTPS'] == 1)
@@ -76,30 +76,38 @@ class Router {
             $url = $protocol . $_SERVER['HTTP_HOST'];
 
             // use port if non default
+            $port = isset($_SERVER['HTTP_X_FORWARDED_PORT'])
+                        ? $_SERVER['HTTP_X_FORWARDED_PORT']
+                        : (isset($_SERVER['SERVER_PORT']) ? $_SERVER['SERVER_PORT'] : '');
             $url .=
-                isset($_SERVER['SERVER_PORT'])
-                && (($protocol === 'http://' && $_SERVER['SERVER_PORT'] != 80) || ($protocol === 'https://' && $_SERVER['SERVER_PORT'] != 443))
-                    ? ':' . $_SERVER['SERVER_PORT']
+                (($protocol === 'http://' && $port != 80) || ($protocol === 'https://' && $port != 443))
+                    ? ':' . $port
                     : '';
 
-            $url .= $_SERVER['PHP_SELF'];
+            $url .= !empty($_SERVER['SCRIPT_URL']) ? $_SERVER['SCRIPT_URL'] : $_SERVER['PHP_SELF'];
 
             // return current url
             $out = $url;
         }
         else {
+            $_SERVER['SCRIPT_NAME'] = !empty($_SERVER['SCRIPT_URL'])
+                ? (!empty($_SERVER['PATH_INFO']) && $_SERVER['PATH_INFO'] != '/'
+                    ? substr($_SERVER['SCRIPT_URL'], 0, -1 * strlen($_SERVER['PATH_INFO']))
+                    : rtrim($_SERVER['SCRIPT_URL'], '/'))
+                : $_SERVER['SCRIPT_NAME'];
+
             if(empty($str)) {
                 $out = $_SERVER['SCRIPT_NAME'];
             } else {
                 if (file_exists($str)) {
-                    $out = dirname($_SERVER['SCRIPT_NAME']) . '/' . $str;
+                    $out = dirname($_SERVER['SCRIPT_NAME']) . $str[0] == '/' ? $str : '/' . $str;
                 }
                 else {
 //            if(dirname($str) != '/' && file_exists(dirname($str))) {
 //                $out = dirname($_SERVER['SCRIPT_NAME']) .'/'. dirname($str) . '/'.basename($str);
 //            }
 //            else {
-                    $out = $_SERVER['SCRIPT_NAME'] . '/' . $str;
+                    $out = $_SERVER['SCRIPT_NAME'] . ($str[0] == '/' ? $str : '/' . $str);
 //            }
                 }
             }
