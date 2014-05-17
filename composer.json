@@ -1,7 +1,7 @@
 {
     "name": "objectiveweb/router",
     "description": "Objectiveweb's URL Router",
-    "minimum-stability": "dev",
+    "minimum-stability": "stable",
     "autoload": {
         "psr-4": { "Objectiveweb\\": "src/" }
     },
