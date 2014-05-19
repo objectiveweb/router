@@ -9,14 +9,14 @@ class Router {
      * Route a particular request to a callback
      *
      *
-     * @throws Exception
+     * @throws \Exception
      * @param $request - HTTP Request Method + Request-URI Regex e.g. "GET /something/([0-9]+)/?"
      * @param $callback - A valid callback. Regex capture groups are passed as arguments to this function
      * @return void or data - If the callback returns something, it's responded accordingly, otherwise, nothing happens
      */
     public static function route($request, $callback) {
         if (!is_callable($callback)) {
-            throw new Exception(sprintf(_('%s: Invalid callback'), $callback), 500);
+            throw new \Exception(sprintf(_('%s: Invalid callback'), $callback), 500);
         }
 
         if(!isset($_SERVER['PATH_INFO'])) {
@@ -38,11 +38,12 @@ class Router {
                     Router::respond($response);
                 }
             }
-            catch (Exception $ex) {
+            catch (\Exception $ex) {
                 Router::respond($ex->getMessage(), $ex->getCode());
             }
         }
     }
+
 
     /**
      * Constructs an URL for a given path
@@ -58,11 +59,10 @@ class Router {
      *  url('othercontroller.php/1/2'); returns '/some_root/my_application/othercontroller.php/1/2' (if othercontroller.php exists)
      *
      * @param $str
-     * @param bool $return if false (default) prints the url, if true returns the url as string
      * @return string
      */
-    public static function url($str = null, $return = true) {
-        if ($str == 'self' || $str === null) {
+    public static function url($str = null) {
+        if ($str == 'self' || empty($str)) {
             if (
                 isset($_SERVER['HTTPS']) && ($_SERVER['HTTPS'] == 'on' || $_SERVER['HTTPS'] == 1)
                 || isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] == 'https'
@@ -77,8 +77,8 @@ class Router {
 
             // use port if non default
             $port = isset($_SERVER['HTTP_X_FORWARDED_PORT'])
-                        ? $_SERVER['HTTP_X_FORWARDED_PORT']
-                        : (isset($_SERVER['SERVER_PORT']) ? $_SERVER['SERVER_PORT'] : '');
+                ? $_SERVER['HTTP_X_FORWARDED_PORT']
+                : (isset($_SERVER['SERVER_PORT']) ? $_SERVER['SERVER_PORT'] : '');
             $url .=
                 (($protocol === 'http://' && $port != 80) || ($protocol === 'https://' && $port != 443))
                     ? ':' . $port
@@ -87,40 +87,26 @@ class Router {
             $url .= !empty($_SERVER['SCRIPT_URL']) ? $_SERVER['SCRIPT_URL'] : $_SERVER['PHP_SELF'];
 
             // return current url
-            $out = $url;
+            return $url;
         }
         else {
-            $_SERVER['SCRIPT_NAME'] = !empty($_SERVER['SCRIPT_URL'])
-                ? (!empty($_SERVER['PATH_INFO']) && $_SERVER['PATH_INFO'] != '/'
-                    ? substr($_SERVER['SCRIPT_URL'], 0, -1 * strlen($_SERVER['PATH_INFO']))
-                    : rtrim($_SERVER['SCRIPT_URL'], '/'))
-                : $_SERVER['SCRIPT_NAME'];
 
-            if(empty($str)) {
-                $out = $_SERVER['SCRIPT_NAME'];
-            } else {
-                if (file_exists($str)) {
-                    $out = dirname($_SERVER['SCRIPT_NAME']) . ($str[0] == '/' ? $str : '/' . $str);
+            if(!empty($_SERVER['PATH_INFO'])) {
+                if(!empty($_SERVER['SCRIPT_URL'])) {
+                    $PATH = substr($_SERVER['SCRIPT_URL'], 0, -1 * strlen($_SERVER['PATH_INFO']));
                 }
                 else {
-                    // TODO check for pointers to other controllers + path info
-                    // i.e. other_controller.php/1/2 does not exist but other_controller.php could exist
-
-                    $out = $_SERVER['SCRIPT_NAME'] . ($str[0] == '/' ? $str : '/' . $str);
+                    $PATH = dirname($_SERVER['SCRIPT_NAME']);
                 }
             }
+            else {
+                $PATH = dirname($_SERVER['SCRIPT_NAME']);
+            }
 
+            return $PATH. ($str[0] == '/' ? $str : '/' . $str);
 
         }
 
-
-        $out = str_replace(' ', '%20', $out);
-        if ($return) {
-            return $out;
-        }
-        else {
-            echo $out;
-        }
     }
 
 
