@@ -100,19 +100,16 @@ class Router {
                 $out = $_SERVER['SCRIPT_NAME'];
             } else {
                 if (file_exists($str)) {
-                    $out = dirname($_SERVER['SCRIPT_NAME']) . $str[0] == '/' ? $str : '/' . $str;
+                    $out = dirname($_SERVER['SCRIPT_NAME']) . ($str[0] == '/' ? $str : '/' . $str);
                 }
                 else {
-//            if(dirname($str) != '/' && file_exists(dirname($str))) {
-//                $out = dirname($_SERVER['SCRIPT_NAME']) .'/'. dirname($str) . '/'.basename($str);
-//            }
-//            else {
+                    // TODO check for pointers to other controllers + path info
+                    // i.e. other_controller.php/1/2 does not exist but other_controller.php could exist
+
                     $out = $_SERVER['SCRIPT_NAME'] . ($str[0] == '/' ? $str : '/' . $str);
-//            }
                 }
             }
 
-            // TODO check for pointers to other controllers + path info (other_controller.php/1/2 does not exist but other_controller.php could exist)
 
         }
 
