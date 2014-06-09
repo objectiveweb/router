@@ -103,7 +103,7 @@ class Router {
                 $PATH = dirname($_SERVER['SCRIPT_NAME']);
             }
 
-            return $PATH. ($str[0] == '/' ? $str : '/' . $str);
+            return ($PATH == '/' ? '' : $PATH). ($str[0] == '/' ? $str : '/' . $str);
 
         }
 
