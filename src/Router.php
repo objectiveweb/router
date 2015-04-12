@@ -53,27 +53,106 @@ class Router {
     public static function controller($path, $class) {
 
         Router::route("([A-Z]+) $path/?(.*)", function($method, $params) use ($path, $class) {
-            switch($method) {
+            // TODO instanciar $class se necessário
 
+            switch($method) {
                 case "POST":
-                    $data = Router::parse_post_body();
-                    Router::route("POST $path", array($class, 'post'), $data);
+                    Router::POST($path, array($class, 'post'));
                     break;
                 case "PUT";
-                    $data = Router::parse_post_body();
-                    Router::route("PUT $path/(.*)", array($class, 'put'), $data);
+                    Router::PUT("$path/?(.*)", array($class, 'put'));
                     break;
                 case "GET":
-                    Router::route("GET $path/?(.*)", array($class, 'get'));
+                    Router::GET("$path/?(.*)", array($class, 'get'));
                     break;
                 case "DELETE":
-                    Router::route("DELETE $path", array($class, 'destroy'));
+                    Router::DELETE("$path", array($class, 'delete'));
                     break;
                 default:
                     throw new \Exception("Invalid method $method");
             }
         });
 
+    }
+
+    /**
+     * Matches a DELETE request,
+     * Callback is called with regex matches + $_GET arguments
+     * @param $path
+     * @param callable $callback function(match[1], match[2], ..., $_GET)
+     * @throws \Exception
+     */
+    public static function DELETE($path, $callback) {
+        if (!is_callable($callback)) {
+            throw new \Exception(sprintf(_('%s: Invalid callback'), $callback), 500);
+        }
+
+        Router::route("DELETE $path", function() use ($callback) {
+            $args = func_get_args();
+            $args[] = $_GET;
+
+            return call_user_func_array($callback, $args);
+        });
+    }
+
+    /**
+     * Matches a GET request,
+     * Callback is called with regex matches + $_GET arguments
+     * @param $path
+     * @param callable $callback function(match[1], match[2], ..., $_GET)
+     * @throws \Exception
+     */
+    public static function GET($path, $callback) {
+        if (!is_callable($callback)) {
+            throw new \Exception(sprintf(_('%s: Invalid callback'), $callback), 500);
+        }
+
+        Router::route("GET $path", function() use ($callback) {
+            $args = func_get_args();
+            $args[] = $_GET;
+
+            return call_user_func_array($callback, $args);
+        });
+    }
+
+    /**
+     * Matches a POST request,
+     * Callback is called with regex matches + decoded post body
+     * @param $path
+     * @param callable $callback function(match[1], match[2], ..., <$post_body>)
+     * @throws \Exception
+     */
+    public static function POST($path, $callback) {
+        if (!is_callable($callback)) {
+            throw new \Exception(sprintf(_('%s: Invalid callback'), $callback), 500);
+        }
+
+        Router::route("POST $path", function() use($callback) {
+            $args = func_get_args();
+            $args[] = Router::parse_post_body();
+
+            return call_user_func_array($callback, $args);
+        });
+    }
+
+    /**
+     * Matches a PUT request,
+     * Callback is called with regex matches + decoded post body
+     * @param $path
+     * @param callable $callback function(match[1], match[2], ..., <$post_body>)
+     * @throws \Exception
+     */
+    public static function PUT($path, $callback) {
+        if (!is_callable($callback)) {
+            throw new \Exception(sprintf(_('%s: Invalid callback'), $callback), 500);
+        }
+
+        Router::route("PUT $path", function() use($callback) {
+            $args = func_get_args();
+            $args[] = Router::parse_post_body();
+
+            return call_user_func_array($callback, $args);
+        });
     }
 
     /**
@@ -166,8 +245,9 @@ class Router {
         }
     }
 
-    public static function redirect($to) {
-        header('Location: ' . Router::url($to, true));
+    public static function redirect($to, $code = 307) {
+        header("HTTP/1.1 $code");
+        header('Location: ' . Router::url($to));
         exit();
     }
 

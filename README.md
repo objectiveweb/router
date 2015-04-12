@@ -8,7 +8,7 @@ Add the dependency to `composer.json`, then `composer install`
 
     {
         "require": {
-            "objectiveweb/router": "~1.0"
+            "objectiveweb/router": "~1.2"
         }
     }
 
