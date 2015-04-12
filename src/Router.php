@@ -144,7 +144,7 @@ class Router {
 
         header("HTTP/1.1 $code");
 
-        if (is_array($content)) {
+        if (is_array($content) || is_object($content)) {
 
             $content = json_encode($content);
         }
