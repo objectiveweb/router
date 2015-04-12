@@ -44,6 +44,37 @@ class Router {
         }
     }
 
+    /**
+     * Binds a controller get/post/put/destroy funtions to HTTP methods
+     * @param $path String path prefix (/path)
+     * @param $class
+     * @throws \Exception
+     */
+    public static function controller($path, $class) {
+
+        Router::route("([A-Z]+) $path/?(.*)", function($method, $params) use ($path, $class) {
+            switch($method) {
+
+                case "POST":
+                    $data = Router::parse_post_body();
+                    Router::route("POST $path", array($class, 'post'), $data);
+                    break;
+                case "PUT";
+                    $data = Router::parse_post_body();
+                    Router::route("PUT $path/(.*)", array($class, 'put'), $data);
+                    break;
+                case "GET":
+                    Router::route("GET $path/?(.*)", array($class, 'get'));
+                    break;
+                case "DELETE":
+                    Router::route("DELETE $path", array($class, 'destroy'));
+                    break;
+                default:
+                    throw new \Exception("Invalid method $method");
+            }
+        });
+
+    }
 
     /**
      * Constructs an URL for a given path
@@ -155,6 +186,5 @@ class Router {
 
         exit($content);
     }
-
 
 }
