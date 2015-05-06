@@ -63,10 +63,11 @@ class Router {
                     Router::PUT("$path/?(.*)", array($class, 'put'));
                     break;
                 case "GET":
+                    Router::GET("$path/?", array($class, 'get'));
                     Router::GET("$path/?(.*)", array($class, 'get'));
                     break;
                 case "DELETE":
-                    Router::DELETE("$path", array($class, 'delete'));
+                    Router::DELETE("$path/?(.*)", array($class, 'delete'));
                     break;
                 default:
                     throw new \Exception("Invalid method $method");
