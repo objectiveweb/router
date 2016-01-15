@@ -58,6 +58,10 @@ class Router {
               $controller = new $controller;
             }
 
+            if(is_callable(array($controller, 'before'))) {
+              call_user_func(array($controller, 'before'));
+            }
+          
             $params = explode("/", $params);
 
             if(!empty($params) && is_callable(array($controller, $params[0]))) {
