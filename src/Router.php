@@ -45,33 +45,46 @@ class Router {
     }
 
     /**
-     * Binds a controller get/post/put/destroy funtions to HTTP methods
+     * Binds a controller get/post/put/destroy or custom functions to HTTP methods
      * @param $path String path prefix (/path)
-     * @param $class
+     * @param $controller mixed class name or class
      * @throws \Exception
      */
-    public static function controller($path, $class) {
+    public static function controller($path, $controller) {
 
-        Router::route("([A-Z]+) $path/?(.*)", function($method, $params) use ($path, $class) {
-            // TODO instanciar $class se necessário
-
-            switch($method) {
-                case "POST":
-                    Router::POST($path, array($class, 'post'));
-                    break;
-                case "PUT";
-                    Router::PUT("$path/?(.*)", array($class, 'put'));
-                    break;
-                case "GET":
-                    Router::GET("$path/?", array($class, 'get'));
-                    Router::GET("$path/?(.*)", array($class, 'get'));
-                    break;
-                case "DELETE":
-                    Router::DELETE("$path/?(.*)", array($class, 'delete'));
-                    break;
-                default:
-                    throw new \Exception("Invalid method $method");
+        Router::route("([A-Z]+) $path/?(.*)", function($method, $params) use ($controller) {
+            
+            if(is_string($controller)) {
+              $controller = new $controller;
             }
+
+            $params = explode("/", $params);
+
+            if(!empty($params) && is_callable(array($controller, $params[0]))) {
+                return call_user_func_array(array($controller, array_shift($params)), $params);
+            }
+
+            $method = strtolower($method);
+          
+            switch($method) {
+                case "post":
+                case "put":
+                case "patch":
+                    $params[] = Router::parse_post_body();
+                    break;
+                case "get":
+                    if(empty($params[0])) $method = 'index';
+                case "delete":
+                    $params[] = $_GET;
+                    break;
+            }
+          
+            if (!is_callable(array($controller, $method))) {
+                throw new \Exception(sprintf(_("%s\\%s: Route not found"), get_class($controller), $method), 404);
+            }
+          
+            return call_user_func_array(array($controller, $method), $params);
+
         });
 
     }
@@ -221,7 +234,7 @@ class Router {
     }
 
 
-    public static function parse_post_body($decoded = true) {
+    public static function parse_post_body($decoded = true, $as_array = true) {
 
         switch($_SERVER['REQUEST_METHOD']) {
 
@@ -233,7 +246,7 @@ class Router {
                 $post_body = file_get_contents('php://input');
                 if(strlen($post_body) > 0 && $decoded) {
                     if($post_body[0] == '{' || $post_body[0] == '[') {
-                        return json_decode($post_body, true);
+                        return json_decode($post_body, $as_array);
                     }
                     else {
                         parse_str($post_body, $return);
