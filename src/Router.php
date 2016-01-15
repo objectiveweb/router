@@ -2,7 +2,6 @@
 
 namespace Objectiveweb;
 
-
 class Router {
 
     /**
@@ -48,28 +47,46 @@ class Router {
      * Binds a controller get/post/put/destroy or custom functions to HTTP methods
      * @param $path String path prefix (/path)
      * @param $controller mixed class name or class
+     * @param ... mixed passed to controller instantiation
      * @throws \Exception
      */
     public static function controller($path, $controller) {
-
-        Router::route("([A-Z]+) $path/?(.*)", function($method, $params) use ($controller) {
+        $args = func_get_args();
+        array_splice($args, 0, 2);
+      
+        Router::route("([A-Z]+) $path/?(.*)", function($method, $params) use ($controller, $args) {
             
             if(is_string($controller)) {
-              $controller = new $controller;
-            }
-
-            if(is_callable(array($controller, 'before'))) {
-              call_user_func(array($controller, 'before'));
-            }
-          
-            $params = explode("/", $params);
-
-            if(!empty($params) && is_callable(array($controller, $params[0]))) {
-                return call_user_func_array(array($controller, array_shift($params)), $params);
+              if (empty($args))  {
+                $controller = new $controller;
+              }
+              else {
+                $refClass = new \ReflectionClass($controller); 
+                $controller = $refClass->newInstanceArgs($args);
+              }
             }
 
             $method = strtolower($method);
+            
+            // Process controller.before, then controller.before[Post|Get|Put|Delete|...]
+            foreach(array('before', 'before'.ucfirst($method)) as $callback) {
+              if(is_callable(array($controller, $callback))) {
+                call_user_func(array($controller, $callback));
+              }
+            }
           
+            $params = explode("/", $params);
+          
+            // Try to execute controller.[post|get|put|delete]Name() or controller.name()
+            if(!empty($params[0])) {
+              foreach(array($method.ucfirst($params[0]), $params[0]) as $callback) {
+                if(is_callable(array($controller, $callback))) {
+                  array_shift($params);
+                  return call_user_func_array(array($controller, $callback), $params);
+                }
+              }
+            }
+
             switch($method) {
                 case "post":
                 case "put":
