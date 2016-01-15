@@ -23,7 +23,8 @@ EOF;
 });
 
 /**
- * Router::controller will bind a path to a controller, using the following schema
+ * Router::controller will bind a path to a class, using the following schema
+ *
  * GET /    => $controller->index();
  * POST /   => $controller->post($decoded_post_body);
  * PUT /    => $controller->put($decoded_post_body);
@@ -47,5 +48,6 @@ EOF;
  * PATCH /path[/path1/path2/...]
  *  calls $controller->patch($path, path1, $path1, ..., $decoded_post_body);
  *
+ * Additional parameters are passed to the class constructor
  */
-Router::controller("/products", 'ProductsController');
+Router::controller("/products", 'MyApplication\ProductsController', "Custom Name");
