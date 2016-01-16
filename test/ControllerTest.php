@@ -42,6 +42,23 @@ class ControllerTest extends PHPUnit_Framework_TestCase
         $this->assertEquals(1, Router::$response[0]['sku']);
     }
 
+    public function testControllerFactory() {
+        $_SERVER['PATH_INFO'] = '/';
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+
+        Router::$factory = function($class, $args) {
+            return new $class($args[0]);
+        };
+
+        Router::controller("/", 'MyApplication\\ProductsController', 'Factory');
+
+        $this->assertEquals(3, count(Router::$response));
+        $this->assertEquals(1, Router::$response[0]['sku']);
+
+
+        Router::$factory = null;
+    }
+
     public function testIndex()
     {
 

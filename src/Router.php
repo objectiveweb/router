@@ -2,7 +2,10 @@
 
 namespace Objectiveweb;
 
-class Router {
+class Router
+{
+    /** @var callable Factory for controllers */
+    public static $factory;
 
     /**
      * Route a particular request to a callback
@@ -13,12 +16,13 @@ class Router {
      * @param $callback - A valid callback. Regex capture groups are passed as arguments to this function
      * @return void or data - If the callback returns something, it's responded accordingly, otherwise, nothing happens
      */
-    public static function route($request, $callback) {
+    public static function route($request, $callback)
+    {
         if (!is_callable($callback)) {
             throw new \Exception(sprintf(_('%s: Invalid callback'), $callback), 500);
         }
 
-        if(!isset($_SERVER['PATH_INFO'])) {
+        if (!isset($_SERVER['PATH_INFO'])) {
             $_SERVER['PATH_INFO'] = '/';
         }
 
@@ -36,8 +40,7 @@ class Router {
                 if ($response !== NULL) {
                     static::respond($response);
                 }
-            }
-            catch (\Exception $ex) {
+            } catch (\Exception $ex) {
                 static::respond($ex->getMessage(), $ex->getCode());
             }
         }
@@ -50,51 +53,55 @@ class Router {
      * @param ... mixed passed to controller instantiation
      * @throws \Exception
      */
-    public static function controller($path, $controller) {
+    public static function controller($path, $controller)
+    {
         $args = func_get_args();
         array_splice($args, 0, 2);
-      
-        self::route("([A-Z]+) $path/?(.*)", function($method, $params) use ($controller, $args) {
-            
-            if(is_string($controller)) {
-              if (empty($args))  {
-                $controller = new $controller;
-              }
-              else {
-                $refClass = new \ReflectionClass($controller); 
-                $controller = $refClass->newInstanceArgs($args);
-              }
-            }
-            elseif(is_callable($controller)) {
+
+        self::route("([A-Z]+) $path/?(.*)", function ($method, $params) use ($controller, $args) {
+
+            if (is_string($controller)) {
+                if(static::$factory) {
+                    $controller = call_user_func(static::$factory, $controller, $args);
+                }
+                else {
+//                    if (empty($args)) {
+//                        $controller = new $controller;
+//                    } else {
+                        $refClass = new \ReflectionClass($controller);
+                        $controller = $refClass->newInstanceArgs($args);
+//                    }
+                }
+
+            } elseif (is_callable($controller)) {
                 $controller = call_user_func_array($controller, $args);
             }
 
             $method = strtolower($method);
-            
+
             // Process controller.before, then controller.before[Post|Get|Put|Delete|...]
-            foreach(array('before', 'before'.ucfirst($method)) as $callback) {
-              if(is_callable(array($controller, $callback))) {
-                call_user_func(array($controller, $callback));
-              }
-            }
-          
-            $params = explode("/", $params);
-          
-            // Try to execute controller.[post|get|put|delete]Name() or controller.name()
-            if(!empty($params[0])) {
-              foreach(array($method.ucfirst($params[0]), $params[0]) as $callback) {
-                if(is_callable(array($controller, $callback))) {
-                  array_shift($params);
-                  return call_user_func_array(array($controller, $callback), $params);
+            foreach (array('before', 'before' . ucfirst($method)) as $callback) {
+                if (is_callable(array($controller, $callback))) {
+                    call_user_func(array($controller, $callback));
                 }
-              }
-            }
-            else {
-              array_shift($params);
-              if($method == 'get') $method = 'index';
             }
 
-            switch($method) {
+            $params = explode("/", $params);
+
+            // Try to execute controller.[post|get|put|delete]Name() or controller.name()
+            if (!empty($params[0])) {
+                foreach (array($method . ucfirst($params[0]), $params[0]) as $callback) {
+                    if (is_callable(array($controller, $callback))) {
+                        array_shift($params);
+                        return call_user_func_array(array($controller, $callback), $params);
+                    }
+                }
+            } else {
+                array_shift($params);
+                if ($method == 'get') $method = 'index';
+            }
+
+            switch ($method) {
                 case "post":
                 case "put":
                 case "patch":
@@ -105,11 +112,11 @@ class Router {
                     $params[] = $_GET;
                     break;
             }
-          
+
             if (!is_callable(array($controller, $method))) {
                 throw new \Exception(sprintf(_("%s\\%s: Route not found"), get_class($controller), $method), 404);
             }
-          
+
             return call_user_func_array(array($controller, $method), $params);
 
         });
@@ -123,12 +130,13 @@ class Router {
      * @param callable $callback function(match[1], match[2], ..., $_GET)
      * @throws \Exception
      */
-    public static function DELETE($path, $callback) {
+    public static function DELETE($path, $callback)
+    {
         if (!is_callable($callback)) {
             throw new \Exception(sprintf(_('%s: Invalid callback'), $callback), 500);
         }
 
-        self::route("DELETE $path", function() use ($callback) {
+        self::route("DELETE $path", function () use ($callback) {
             $args = func_get_args();
             $args[] = $_GET;
 
@@ -143,12 +151,13 @@ class Router {
      * @param callable $callback function(match[1], match[2], ..., $_GET)
      * @throws \Exception
      */
-    public static function GET($path, $callback) {
+    public static function GET($path, $callback)
+    {
         if (!is_callable($callback)) {
             throw new \Exception(sprintf(_('%s: Invalid callback'), $callback), 500);
         }
 
-        self::route("GET $path", function() use ($callback) {
+        self::route("GET $path", function () use ($callback) {
             $args = func_get_args();
             $args[] = $_GET;
 
@@ -163,12 +172,13 @@ class Router {
      * @param callable $callback function(match[1], match[2], ..., <$post_body>)
      * @throws \Exception
      */
-    public static function POST($path, $callback) {
+    public static function POST($path, $callback)
+    {
         if (!is_callable($callback)) {
             throw new \Exception(sprintf(_('%s: Invalid callback'), $callback), 500);
         }
 
-        self::route("POST $path", function() use($callback) {
+        self::route("POST $path", function () use ($callback) {
             $args = func_get_args();
             $args[] = self::parse_post_body();
 
@@ -183,12 +193,13 @@ class Router {
      * @param callable $callback function(match[1], match[2], ..., <$post_body>)
      * @throws \Exception
      */
-    public static function PUT($path, $callback) {
+    public static function PUT($path, $callback)
+    {
         if (!is_callable($callback)) {
             throw new \Exception(sprintf(_('%s: Invalid callback'), $callback), 500);
         }
 
-        Router::route("PUT $path", function() use($callback) {
+        Router::route("PUT $path", function () use ($callback) {
             $args = func_get_args();
             $args[] = self::parse_post_body();
 
@@ -212,15 +223,15 @@ class Router {
      * @param $str
      * @return string
      */
-    public static function url($str = null) {
+    public static function url($str = null)
+    {
         if ($str == 'self' || empty($str)) {
             if (
                 isset($_SERVER['HTTPS']) && ($_SERVER['HTTPS'] == 'on' || $_SERVER['HTTPS'] == 1)
                 || isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] == 'https'
             ) {
                 $protocol = 'https://';
-            }
-            else {
+            } else {
                 $protocol = 'http://';
             }
 
@@ -239,62 +250,60 @@ class Router {
 
             // return current url
             return $url;
-        }
-        else {
+        } else {
 
-            if(!empty($_SERVER['PATH_INFO'])) {
-                if(!empty($_SERVER['SCRIPT_URL'])) {
+            if (!empty($_SERVER['PATH_INFO'])) {
+                if (!empty($_SERVER['SCRIPT_URL'])) {
                     $PATH = substr($_SERVER['SCRIPT_URL'], 0, -1 * strlen($_SERVER['PATH_INFO']));
-                }
-                else {
+                } else {
                     $PATH = dirname($_SERVER['SCRIPT_NAME']);
                 }
-            }
-            else {
+            } else {
                 $PATH = dirname($_SERVER['SCRIPT_NAME']);
             }
 
-            return ($PATH == '/' ? '' : $PATH). ($str[0] == '/' ? $str : '/' . $str);
+            return ($PATH == '/' ? '' : $PATH) . ($str[0] == '/' ? $str : '/' . $str);
 
         }
 
     }
 
 
-    public static function parse_post_body($decoded = true, $as_array = true) {
+    public static function parse_post_body($decoded = true, $as_array = true)
+    {
 
-        switch($_SERVER['REQUEST_METHOD']) {
+        switch ($_SERVER['REQUEST_METHOD']) {
             case 'POST':
                 if (!empty($_POST)) {
                     return $_POST;
                 }
             default:
                 $post_body = file_get_contents('php://input');
-                if(strlen($post_body) > 0 && $decoded) {
-                    if($post_body[0] == '{' || $post_body[0] == '[') {
+                if (strlen($post_body) > 0 && $decoded) {
+                    if ($post_body[0] == '{' || $post_body[0] == '[') {
                         return json_decode($post_body, $as_array);
-                    }
-                    else {
+                    } else {
                         parse_str($post_body, $return);
                         return $return;
                     }
-                }
-                else {
+                } else {
                     return $post_body;
                 }
         }
     }
 
-    public static function redirect($to, $code = 307) {
+    public static function redirect($to, $code = 307)
+    {
         header("HTTP/1.1 $code");
         header('Location: ' . Router::url($to));
         exit();
     }
 
-    public static function respond($content, $code = 200) {
+    public static function respond($content, $code = 200)
+    {
 
         header("HTTP/1.1 $code");
-    
+
         if (is_array($content) || is_object($content)) {
 
             $content = json_encode($content);
