@@ -1,6 +1,6 @@
 {
     "name": "objectiveweb/router",
-    "description": "Objectiveweb's URL Router",
+    "description": "Lightweight URL Router",
     "minimum-stability": "stable",
     "autoload": {
         "psr-4": { "Objectiveweb\\": "src/" }
@@ -10,5 +10,8 @@
             "name": "Guilherme Barile"
         }
     ],
+    "require-dev": {
+      "phpunit/phpunit": "4.*"
+    },
     "license": "MIT"
 }

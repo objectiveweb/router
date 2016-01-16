@@ -6,8 +6,11 @@ class ProductsController {
     
   private $name;
   
-  private $products = array(
-    array('name' => "Cassete Recorder", 'sku' => 1, 'price' => 30.00),
+  // emulate authentication for tests
+  public $auth = false;
+  
+  public $products = array(
+    array('name' => "Cassete Recorder", 'sku' => 1, 'price' => 100.00),
     array('name' => "Tractor Beam", 'sku' => 2, 'price' => 7.99)
   );
   
@@ -34,7 +37,9 @@ class ProductsController {
    * Important: before() will be called before these methods
    */
   function beforePost() {
-    throw new \Exception("Unauthorized", 403);
+    if(!$this->auth) {
+      throw new \Exception("Unauthorized", 403);
+    }
   }
   
   // rest callbacks
@@ -61,37 +66,21 @@ class ProductsController {
   }
   
   /**
-   * POST /
+   * POST / Example
+   *
+   * You may also handle other methods defining each function (put, patch, options, head, ...)
    */
   function post($product) {
     $this->products[] = $product;
   }
   
-  /** 
-   * PATCH /sku
-   */
-  function patch($sku, $data) {
-    $product = $this->get($sku);
-    
-    foreach($data as $key => $value) {
-      $product->$key = $value;
-    }
-  }
   
   /**
-   * PUT /sku
+   * This function will always override sale() for GET requests
+   * The sale() function will act as a fallback for non-defined method (i.e. VIEW /products/sale)
    */
-  function put($sku, $data) {
-    $product = &$this->get($sku);
-    
-    foreach(array_keys($product) as $key) {
-      unset($product[$key]);
-    }
-    
-    foreach($data as $key => $value) {
-      $product[$key] = $value;
-    }
-    
+  function getSale() {
+    return $this->sale(90);
   }
   
   /**
@@ -106,14 +95,6 @@ class ProductsController {
   }
   
   /**
-   * This function will always override sale() for GET requests
-   * The sale() function will act as a fallback for non-defined method (i.e. VIEW /products/sale)
-   */
-  function getSale() {
-    return $this->sale(90);
-  }
-
-  /**
    * Handles a HEAD /sale request
    */
   function headSale() {
@@ -122,10 +103,10 @@ class ProductsController {
   }
   
   /**
-   * Handles an OPTIONS /salve request
+   * Handles an OPTIONS /sale request
    */
   function optionsSale() {
-    return "Caught OPTIONS request on /sale";
+    return count($this->products);
   }
   
 }
