@@ -34,11 +34,11 @@ class Router {
             try {
                 $response = call_user_func_array($callback, $params);
                 if ($response !== NULL) {
-                    Router::respond($response);
+                    static::respond($response);
                 }
             }
             catch (\Exception $ex) {
-                Router::respond($ex->getMessage(), $ex->getCode());
+                static::respond($ex->getMessage(), $ex->getCode());
             }
         }
     }
@@ -54,7 +54,7 @@ class Router {
         $args = func_get_args();
         array_splice($args, 0, 2);
       
-        Router::route("([A-Z]+) $path/?(.*)", function($method, $params) use ($controller, $args) {
+        self::route("([A-Z]+) $path/?(.*)", function($method, $params) use ($controller, $args) {
             
             if(is_string($controller)) {
               if (empty($args))  {
@@ -86,6 +86,10 @@ class Router {
                 }
               }
             }
+            else {
+              array_shift($params);
+              if($method == 'get') $method = 'index';
+            }
 
             switch($method) {
                 case "post":
@@ -94,7 +98,6 @@ class Router {
                     $params[] = Router::parse_post_body();
                     break;
                 case "get":
-                    if(empty($params[0])) $method = 'index';
                 case "delete":
                     $params[] = $_GET;
                     break;
@@ -122,7 +125,7 @@ class Router {
             throw new \Exception(sprintf(_('%s: Invalid callback'), $callback), 500);
         }
 
-        Router::route("DELETE $path", function() use ($callback) {
+        self::route("DELETE $path", function() use ($callback) {
             $args = func_get_args();
             $args[] = $_GET;
 
@@ -142,7 +145,7 @@ class Router {
             throw new \Exception(sprintf(_('%s: Invalid callback'), $callback), 500);
         }
 
-        Router::route("GET $path", function() use ($callback) {
+        self::route("GET $path", function() use ($callback) {
             $args = func_get_args();
             $args[] = $_GET;
 
@@ -162,9 +165,9 @@ class Router {
             throw new \Exception(sprintf(_('%s: Invalid callback'), $callback), 500);
         }
 
-        Router::route("POST $path", function() use($callback) {
+        self::route("POST $path", function() use($callback) {
             $args = func_get_args();
-            $args[] = Router::parse_post_body();
+            $args[] = self::parse_post_body();
 
             return call_user_func_array($callback, $args);
         });
@@ -184,7 +187,7 @@ class Router {
 
         Router::route("PUT $path", function() use($callback) {
             $args = func_get_args();
-            $args[] = Router::parse_post_body();
+            $args[] = self::parse_post_body();
 
             return call_user_func_array($callback, $args);
         });
@@ -289,7 +292,7 @@ class Router {
     public static function respond($content, $code = 200) {
 
         header("HTTP/1.1 $code");
-
+    
         if (is_array($content) || is_object($content)) {
 
             $content = json_encode($content);
