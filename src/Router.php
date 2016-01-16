@@ -264,12 +264,11 @@ class Router {
     public static function parse_post_body($decoded = true, $as_array = true) {
 
         switch($_SERVER['REQUEST_METHOD']) {
-
             case 'POST':
                 if (!empty($_POST)) {
                     return $_POST;
-                };
-            case 'PUT':
+                }
+            default:
                 $post_body = file_get_contents('php://input');
                 if(strlen($post_body) > 0 && $decoded) {
                     if($post_body[0] == '{' || $post_body[0] == '[') {
