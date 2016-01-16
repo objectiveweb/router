@@ -65,6 +65,9 @@ class Router {
                 $controller = $refClass->newInstanceArgs($args);
               }
             }
+            elseif(is_callable($controller)) {
+                $controller = call_user_func_array($controller, $args);
+            }
 
             $method = strtolower($method);
             
