@@ -15,48 +15,26 @@ class ControllerTest extends PHPUnit_Framework_TestCase
     /** @var ProductsController */
     static protected $controller;
 
+    /** @var  Router */
+    static protected $app;
+
+    public static function setUpBeforeClass()
+    {
+        self::$app = new Router();
+    }
+
     public static function route($method, $path)
     {
 
         $_SERVER['PATH_INFO'] = $path;
         $_SERVER['REQUEST_METHOD'] = $method;
 
-        Router::controller("/", self::$controller);
+        self::$app->controller("/", self::$controller);
     }
 
     public function setUp()
     {
         self::$controller = new ProductsController("Test");
-    }
-
-
-    public function testCallbackController() {
-        $_SERVER['PATH_INFO'] = '/';
-        $_SERVER['REQUEST_METHOD'] = 'GET';
-
-        Router::controller("/", function() {
-            return new ProductsController("CallbackItem");
-        });
-
-        $this->assertEquals(3, count(Router::$response));
-        $this->assertEquals(1, Router::$response[0]['sku']);
-    }
-
-    public function testControllerFactory() {
-        $_SERVER['PATH_INFO'] = '/';
-        $_SERVER['REQUEST_METHOD'] = 'GET';
-
-        Router::$factory = function($class, $args) {
-            return new $class($args[0]);
-        };
-
-        Router::controller("/", 'MyApplication\\ProductsController', 'Factory');
-
-        $this->assertEquals(3, count(Router::$response));
-        $this->assertEquals(1, Router::$response[0]['sku']);
-
-
-        Router::$factory = null;
     }
 
     public function testIndex()

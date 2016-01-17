@@ -10,6 +10,9 @@
             "name": "Guilherme Barile"
         }
     ],
+    "require": {
+      "level-2/dice": "^2.0"
+    },
     "require-dev": {
       "phpunit/phpunit": "4.*"
     },

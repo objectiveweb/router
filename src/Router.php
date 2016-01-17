@@ -2,10 +2,8 @@
 
 namespace Objectiveweb;
 
-class Router
+class Router extends \Dice\Dice
 {
-    /** @var callable Factory for controllers */
-    public static $factory;
 
     /**
      * Route a particular request to a callback
@@ -13,11 +11,16 @@ class Router
      *
      * @throws \Exception
      * @param $request - HTTP Request Method + Request-URI Regex e.g. "GET /something/([0-9]+)/?"
-     * @param $callback - A valid callback. Regex capture groups are passed as arguments to this function
+     * @param $callback - A valid callback. Regex capture groups are passed as arguments to this function, using
+     *   array('Namespace\ClassNameAsString', 'method') triggers the dependency injector to instantiate the given class
      * @return void or data - If the callback returns something, it's responded accordingly, otherwise, nothing happens
      */
-    public static function route($request, $callback)
+    public function route($request, $callback)
     {
+        if (is_array($callback) && is_string($callback[0])) {
+            $callback[0] = $this->create($callback[0]);
+        }
+
         if (!is_callable($callback)) {
             throw new \Exception(sprintf(_('%s: Invalid callback'), $callback), 500);
         }
@@ -25,8 +28,6 @@ class Router
         if (!isset($_SERVER['PATH_INFO'])) {
             $_SERVER['PATH_INFO'] = '/';
         }
-
-        // TODO check if using PATH_INFO is ok in all cases (rewrite, different servers, etc)
 
         if (preg_match(sprintf("/^%s$/", str_replace('/', '\/', $request)), "{$_SERVER['REQUEST_METHOD']} {$_SERVER['PATH_INFO']}", $params)) {
             array_shift($params);
@@ -53,28 +54,15 @@ class Router
      * @param ... mixed passed to controller instantiation
      * @throws \Exception
      */
-    public static function controller($path, $controller)
+    public function controller($path, $controller)
     {
         $args = func_get_args();
         array_splice($args, 0, 2);
 
-        self::route("([A-Z]+) $path/?(.*)", function ($method, $params) use ($controller, $args) {
+        $this->route("([A-Z]+) $path/?(.*)", function ($method, $params) use ($controller, $args) {
 
             if (is_string($controller)) {
-                if(static::$factory) {
-                    $controller = call_user_func(static::$factory, $controller, $args);
-                }
-                else {
-//                    if (empty($args)) {
-//                        $controller = new $controller;
-//                    } else {
-                        $refClass = new \ReflectionClass($controller);
-                        $controller = $refClass->newInstanceArgs($args);
-//                    }
-                }
-
-            } elseif (is_callable($controller)) {
-                $controller = call_user_func_array($controller, $args);
+                $controller = $this->create($controller, $args);
             }
 
             $method = strtolower($method);
@@ -88,9 +76,21 @@ class Router
 
             $params = explode("/", $params);
 
+            switch ($method) {
+                case "post":
+                case "put":
+                case "patch":
+                    $params[] = Router::parse_post_body();
+                default:
+                    $params[] = $_GET;
+                    break;
+            }
+
             // Try to execute controller.[post|get|put|delete]Name() or controller.name()
             if (!empty($params[0])) {
-                foreach (array($method . ucfirst($params[0]), $params[0]) as $callback) {
+                $_fn = str_replace('-', '_', $params[0]);
+
+                foreach (array($method . ucfirst($_fn), $_fn) as $callback) {
                     if (is_callable(array($controller, $callback))) {
                         array_shift($params);
                         return call_user_func_array(array($controller, $callback), $params);
@@ -101,17 +101,6 @@ class Router
                 if ($method == 'get') $method = 'index';
             }
 
-            switch ($method) {
-                case "post":
-                case "put":
-                case "patch":
-                    $params[] = Router::parse_post_body();
-                    break;
-                case "get":
-                case "delete":
-                    $params[] = $_GET;
-                    break;
-            }
 
             if (!is_callable(array($controller, $method))) {
                 throw new \Exception(sprintf(_("%s\\%s: Route not found"), get_class($controller), $method), 404);
@@ -130,13 +119,13 @@ class Router
      * @param callable $callback function(match[1], match[2], ..., $_GET)
      * @throws \Exception
      */
-    public static function DELETE($path, $callback)
+    public function DELETE($path, $callback)
     {
         if (!is_callable($callback)) {
             throw new \Exception(sprintf(_('%s: Invalid callback'), $callback), 500);
         }
 
-        self::route("DELETE $path", function () use ($callback) {
+        $this->route("DELETE $path", function () use ($callback) {
             $args = func_get_args();
             $args[] = $_GET;
 
@@ -151,13 +140,13 @@ class Router
      * @param callable $callback function(match[1], match[2], ..., $_GET)
      * @throws \Exception
      */
-    public static function GET($path, $callback)
+    public function GET($path, $callback)
     {
         if (!is_callable($callback)) {
             throw new \Exception(sprintf(_('%s: Invalid callback'), $callback), 500);
         }
 
-        self::route("GET $path", function () use ($callback) {
+        $this->route("GET $path", function () use ($callback) {
             $args = func_get_args();
             $args[] = $_GET;
 
@@ -172,15 +161,15 @@ class Router
      * @param callable $callback function(match[1], match[2], ..., <$post_body>)
      * @throws \Exception
      */
-    public static function POST($path, $callback)
+    public function POST($path, $callback)
     {
         if (!is_callable($callback)) {
             throw new \Exception(sprintf(_('%s: Invalid callback'), $callback), 500);
         }
 
-        self::route("POST $path", function () use ($callback) {
+        $this->route("POST $path", function () use ($callback) {
             $args = func_get_args();
-            $args[] = self::parse_post_body();
+            $args[] = Router::parse_post_body();
 
             return call_user_func_array($callback, $args);
         });
@@ -193,15 +182,15 @@ class Router
      * @param callable $callback function(match[1], match[2], ..., <$post_body>)
      * @throws \Exception
      */
-    public static function PUT($path, $callback)
+    public function PUT($path, $callback)
     {
         if (!is_callable($callback)) {
             throw new \Exception(sprintf(_('%s: Invalid callback'), $callback), 500);
         }
 
-        Router::route("PUT $path", function () use ($callback) {
+        $this->route("PUT $path", function () use ($callback) {
             $args = func_get_args();
-            $args[] = self::parse_post_body();
+            $args[] = Router::parse_post_body();
 
             return call_user_func_array($callback, $args);
         });
