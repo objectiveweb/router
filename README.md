@@ -2,6 +2,8 @@
 
 Lightweight router for php controllers.
 
+This version (1.3) officially drops support for PHP 5.3. 
+
 ## Instalation
 
 Add the dependency to `composer.json`, then `composer install`
