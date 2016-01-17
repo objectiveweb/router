@@ -6,7 +6,9 @@ include 'ProductsController.php';
 
 use Objectiveweb\Router;
 
-Router::GET("/", function() {
+$app = new Router();
+
+$app->GET("/", function() {
   return <<< EOF
   <html>
   <body>
@@ -50,4 +52,4 @@ EOF;
  *
  * Additional parameters are passed to the class constructor
  */
-Router::controller("/products", 'MyApplication\ProductsController', "Custom Name");
+$app->controller("/products", 'MyApplication\ProductsController', "Custom Name");
