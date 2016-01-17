@@ -1,6 +1,6 @@
 # Objectiveweb URL Router ![Build Status](https://travis-ci.org/objectiveweb/router.svg?branch=master)
 
-Lightweight router for php controllers with dependency injection support.
+Lightweight url router with dependency injection support.
 
 ## Instalation
 
@@ -12,14 +12,15 @@ Add the dependency to `composer.json`, then `composer install`
         }
     }
 
-## Usage
+## Basic Usage
 
-In Objectiveweb applications, a controller is a php file which responds to url routes.
+In Objectiveweb applications, an endpoint refers a php file which responds to url routes.
 
-`Router::route($regex, $callable)` tests `$regex` against the request method and uri (e.g. "GET /something/([0-9]+)/?"),
-passing the captured parameters to `$callable` when matched
+When trigered, the `route($regex, $callable)` function tests `$regex` against the current 
+request method and uri (e.g. "GET endpoint.php/something/([0-9]+)/?"), passing the captured 
+parameters to `$callable` when matched.
 
-### Example controller.php
+### Example endpoint
 
     <?php
     // include the composer autoloader
@@ -53,36 +54,70 @@ passing the captured parameters to `$callable` when matched
         // Exceptions are captured, message is send with the proper code
         throw new \Exception('Panic!', 500);
     });
+    
+    // catch all
+    $app->router("([A_Z]+) (.*), function ($method, $path) {
+        return "Request matched $method and $path";
+    });
 
-  * GET http://server/controller.php displays `Hello index`
-  * GET http://server/controller.php/data returns a json-encoded array with values 1, 2, 3
-  * GET http://server/controller.php/test returns a not found error with a json object on its body
-  * POST http://server/controller.php/panic raises a 500 Internal server error with 'Panic!' as the response
+  * GET http://server/endpoint.php displays `Hello index`
+  * GET http://server/endpoint.php/data returns a json-encoded array with values 1, 2, 3
+  * GET http://server/endpoint.php/test returns a not found error with a json object on its body
+  * POST http://server/endpoint.php/panic raises a 500 Internal server error with 'Panic!' as the response
 
 ## Controllers
 
-PHP classes may be bound directly to an endpoint. In this case, the request method is mapped to the corresponding
-class method as follows
+PHP classes may be bound to an url using the `controller($path, $class)` on public-facing endpoint (index.php)
+        
+    $app->controller('/', 'ExampleController');
+    
+In this case, the request is mapped to the corresponding class method as follows
 
- * GET /      => $controller->index($_GET);
- * POST /       => $controller->post($decoded_post_body);
- * PUT /      => $controller->put($decoded_post_body);
- * PATCH /    => $controller->patch($decoded_post_body);
- * (Other request methods are also valid, i.e. HEAD, OPTIONS, etc)
- * GET /(.*)  => $controller->get($path[0], $path[1], ..., $_GET)
+    <?php
+    
+    class ExampleController {
+    
+        // GET /?k=v
+        function index($querystring) {
+        
+        }
+        
+        // GET /(.*)?k=v
+        function get($path1, $path2, ..., $querystring) {
+        
+        }
+        
+        // POST /
+        function post($body) {
+        
+        }
+        
+        // Other request methods are also valid, i.e. head(), options(), etc
+        
+    }
 
 When a function named like the first parameter ($path[0]) exists on the controller, it gets called with the 
 remaining parameters
 
- * GET /example/(.*) => $controller->example($path[1], ...)
- 
-The function name may also be prefixed with the request method. In this case the query parameters are passed as the 
+    // (GET|POST|PUT|...) /example/(.*)
+    function example($path[1], $path[2], ...) {
+        // check $_SERVER['REQUEST_METHOD'] and process data
+    }
+    
+This function name may also be prefixed with the request method. In this case the query parameters are passed as the 
 last argument
 
- * GET /example/(.*) => $controller->getExample($path[1], ..., $_GET);
- * POST /example/(.*) => $controller->postExample($path[1], ..., $decoded_post_body);
-
-Other request methods are also valid (i.e. HEAD, OPTIONS, etc), check the included example for more information.
+    // GET /example/(.*)
+    function getExample($path[1], $path[2], ..., $_GET) {
+    
+    }
+    
+    // POST /example/(.*)
+    function postExample($path[1], $path[2], ..., $decoded_post_body) {
+    
+    }
+    
+Other request methods are also valid (i.e. HEAD, OPTIONS, etc), check the example subdir for other uses.
  
 ## Dependency Injection
 
@@ -117,6 +152,7 @@ if you defined the controller
     
         private $pdo;
         
+        // A configured instance of PDO will be injected and reused as necessary
         function __construct(PDO $pdo) {
             $this->pdo = pdo;
         }
@@ -126,16 +162,23 @@ if you defined the controller
         }
     }
 
-And the public-facing endpoint (index.php)
-        
-    // When `MyApplication\MyController` gets instantiated, all the constructor 
-    // dependencies (And dependencies of those dependencies) are be automatically resolved.
-    // In this case, PDO will be reused
-    $app->controller('/products', 'MyApplication\MyController');
+When `MyApplication\MyController` gets instantiated by the Router, all the constructor 
+dependencies (And dependencies of those dependencies) get automatically resolved.
+
+You can inject dependencies adding type-hinted parameters to your controller's constructor:
+
+    function __construct(\Util\Gmaps $gmaps, \DB\ProductsRepository $products) {
+      $this->gmaps = $gmaps;
+      $this->products = $products;
+    }
     
-In a more complicated example, let's instantiate Twig
+    // Use $this->gmaps and $this->products on other functions
+
+In a another example, let's instantiate Twig
     
     // index.php
+    
+    $app = new \Objectiveweb\Router();
     
     $app->addRule('Twig_Loader_Filesystem', array(
         'shared' => true,
@@ -161,9 +204,13 @@ In a more complicated example, let's instantiate Twig
 
     $app->controller('/', 'MyController')
     
-Then, inject it on your controller constructor
+Then, inject it on your controller's constructor
     
     class MyController {
+    
+        private $twig;
+        private $pdo;
+        
         function __construct(Twig_Environment $twig, PDO $pdo) {
             $this->twig = $twig;
             $this->pdo = $pdo;
@@ -196,4 +243,3 @@ Dice Rules can be configured with these properties:
   to `$app->addRule()`. [View Example](https://r.je/dice.html#example3-6)
   * shareInstances (array) - A list of class names that will be shared throughout a single object 
   tree. [View Example](https://r.je/dice.html#example3-7)
-  
