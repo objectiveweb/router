@@ -88,14 +88,19 @@ class Router extends \Dice\Dice
 
             // Try to execute controller.[post|get|put|delete]Name() or controller.name()
             if (!empty($params[0])) {
-                $_fn = str_replace('-', '_', $params[0]);
-
-                foreach (array($method . ucfirst($_fn), $_fn) as $callback) {
-                    if (is_callable(array($controller, $callback))) {
-                        array_shift($params);
-                        return call_user_func_array(array($controller, $callback), $params);
-                    }
+                $_fn = str_replace('-', '_', $method . ucfirst($params[0]));
+                if (is_callable(array($controller, $_fn))) {
+                    array_shift($params);
+                    return call_user_func_array(array($controller, $_fn), $params);
                 }
+
+                $_fn = str_replace('-', '_',$params[0]);
+                if (is_callable(array($controller, $_fn))) {
+                    array_shift($params);
+                    array_pop($params);
+                    return call_user_func_array(array($controller, $_fn), $params);
+                }
+
             } else {
                 array_shift($params);
                 if ($method == 'get') $method = 'index';
