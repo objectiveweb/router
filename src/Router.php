@@ -93,14 +93,12 @@ class Router extends \Dice\Dice
                     array_shift($params);
                     return call_user_func_array(array($controller, $_fn), $params);
                 }
-
                 $_fn = str_replace('-', '_',$params[0]);
                 if (is_callable(array($controller, $_fn))) {
                     array_shift($params);
                     array_pop($params);
                     return call_user_func_array(array($controller, $_fn), $params);
                 }
-
             } else {
                 array_shift($params);
                 if ($method == 'get') $method = 'index';

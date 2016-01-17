@@ -55,7 +55,7 @@ class ProductsController {
    * GET /sku
    */
   function &get($sku) {
-    
+
     foreach($this->products as &$product) {
       if($product['sku'] == $sku) {
         return $product;
