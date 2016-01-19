@@ -1,6 +1,6 @@
 <?php
 
-namespace MyApplication;
+namespace App;
 
 class ProductsController {
     
@@ -9,21 +9,17 @@ class ProductsController {
   // emulate authentication for tests
   public $auth = false;
   
-  public $products = array(
-    array('name' => "Cassete Recorder", 'sku' => 1, 'price' => 100.00),
-    array('name' => "Tractor Beam", 'sku' => 2, 'price' => 7.99)
-  );
-  
-  function __construct($name = "Products") {
-    $this->name = $name;
+  // ProductsRepository will be injected automatically
+  // $name is a random parameter to demonstrate additional parameters
+  function __construct(\App\DB\ProductsRepository $products, $name = "Products Controller") {
+      $this->products = $products;
+      $this->name = $name;
   }
   
   /** 
    * (optional) runs before every request
    */
   function before() {
-    $this->products[] = array('name' => "Added before dispatching $this->name", 'sku' => 5, 'price' => 666.66);
-    
     if(isset($_GET['error'])) {
       // trigger an error (could be testing for auth, permissions, etc)
       throw new \Exception("error trigger detected", 500);
@@ -34,7 +30,7 @@ class ProductsController {
    * (optional) triggered before every POST request
    *
    * You can also use beforeGet(), beforePut(), beforeDelete() and so on
-   * Important: before() will be called before these methods
+   * Important: before() will also be called before these methods
    */
   function beforePost() {
     if(!$this->auth) {
@@ -48,21 +44,14 @@ class ProductsController {
    * GET /
    */
   function index() {
-    return $this->products;
+    return $this->products->index();
   }
   
   /**
    * GET /sku
    */
-  function &get($sku) {
-
-    foreach($this->products as &$product) {
-      if($product['sku'] == $sku) {
-        return $product;
-      }
-    }
-    
-    throw new \Exception("Product not found", 404);
+  function get($sku) {
+    return $this->products->get($sku);
   }
   
   /**
@@ -71,7 +60,7 @@ class ProductsController {
    * You may also handle other methods defining each function (put, patch, options, head, ...)
    */
   function post($product) {
-    $this->products[] = $product;
+    $this->products->post($product);
   }
   
   
@@ -91,7 +80,7 @@ class ProductsController {
       $product['price'] = $product['price'] * (1 - $pct/100);
       
       return $product;
-    }, $this->products);
+    }, $this->products->index());
   }
   
   /**
@@ -106,7 +95,11 @@ class ProductsController {
    * Handles an OPTIONS /sale request
    */
   function optionsSale() {
-    return count($this->products);
+    return $this->products->count();
   }
   
+    
+    function hello() {
+        return "Hello $this->name";
+    }
 }

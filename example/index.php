@@ -1,12 +1,28 @@
 <?php
 
-// in real applications you should use composer and include the generated autoloader
+// library dependencies
+// in real applications you should use an autoloader
+include '../vendor/level-2/dice/Dice.php';
 include '../src/Router.php';
-include 'ProductsController.php';
+
+// application dependencies
+include 'App/ProductsController.php';
+include 'App/DB/ProductsRepository.php';
 
 use Objectiveweb\Router;
 
 $app = new Router();
+
+// app configuration
+$app->addRule('App\DB\ProductsRepository', [
+    'shared' => true,
+    'constructParams' => [
+        array(
+            array('name' => "Cassete Recorder", 'sku' => 1, 'price' => 100.00),
+            array('name' => "Tractor Beam", 'sku' => 2, 'price' => 7.99)
+        )
+    ]
+]);
 
 $app->GET("/", function() {
   return <<< EOF
@@ -52,4 +68,4 @@ EOF;
  *
  * Additional parameters are passed to the class constructor
  */
-$app->controller("/products", 'MyApplication\ProductsController', "Custom Name");
+$app->controller("/products", 'App\ProductsController', "Custom Name");
