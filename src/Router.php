@@ -200,6 +200,28 @@ class Router extends \Dice\Dice
     }
 
     /**
+     * Bootstraps an endpoint based on $namespace
+     */
+    public function run($namespace) {
+      
+        $router = $this;
+      
+        $this->route("([A-Z]+) /(.*)", function($method, $path) use ($router, $namespace) {
+            
+            if(!empty($path)) {
+                $path = explode("/", $path); 
+                $class = "$namespace\\".ucfirst($path[0])."Controller";
+              
+                if(class_exists($class)) {
+                    $router->controller("/{$path[0]}", $class);
+                }
+            }
+          
+            $router->controller("/", "$namespace\\HomeController");
+        });
+    }
+  
+    /**
      * Constructs an URL for a given path
      *  - If the given url is external or exists as a file on disk, return that file's url
      *  - If the file does not exist, construct a url based on the current script + path info

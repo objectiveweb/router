@@ -14,9 +14,9 @@ Add the dependency to `composer.json`, then `composer install`
 
 ## Basic Usage
 
-In Objectiveweb applications, an endpoint refers a php file which responds to url routes.
+In Objectiveweb applications, an endpoint refers to a php file which responds to url routes.
 
-When trigered, the `route($regex, $callable)` function tests `$regex` against the current 
+Under the hood, the `route($regex, $callable)` function tests `$regex` against the current 
 request method and uri (e.g. "GET endpoint.php/something/([0-9]+)/?"), passing the captured 
 parameters to `$callable` when matched.
 
@@ -118,7 +118,19 @@ last argument
     }
     
 Other request methods are also valid (i.e. HEAD, OPTIONS, etc), check the example subdir for other uses.
- 
+
+### Automatic routing
+
+You can bootstrap the application on a particular namespace using
+
+    $app->run('Namespace');
+
+When run, the Router automatically maps the incoming requests to the given namespace. For example, a request to
+/products would instantiate the `Namespace\ProductsController` class.
+
+If the Controller doesn't exist, the request is passed to the `Namespace\HomeController`. Check `example/app-run.php`
+for a working demo.
+
 ## Dependency Injection
 
 Since version 2.0, the Router extends [Dice](https://r.je/dice.html), which provides a dependency injection 
