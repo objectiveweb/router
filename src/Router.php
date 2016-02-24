@@ -70,7 +70,7 @@ class Router extends \Dice\Dice
             // Process controller.before, then controller.before[Post|Get|Put|Delete|...]
             foreach (array('before', 'before' . ucfirst($method)) as $callback) {
                 if (is_callable(array($controller, $callback))) {
-                    call_user_func(array($controller, $callback));
+                    return static::controller_call($controller, $callback);
                 }
             }
 
@@ -81,11 +81,12 @@ class Router extends \Dice\Dice
                 case "put":
                 case "patch":
                     if(is_callable( array($controller, '_deserialize'))) {
-                        $controller->_deserialize(Router::parse_post_body(false));
+                        $params[] = $controller->_deserialize(Router::parse_post_body(false));
                     }
                     else {
-                        $params[] = Router::parse_post_body(false);
+                        $params[] = Router::parse_post_body();
                     }
+                    break;
                 default:
                     $params[] = $_GET;
                     break;
@@ -96,13 +97,13 @@ class Router extends \Dice\Dice
                 $_fn = str_replace('-', '_', $method . ucfirst($params[0]));
                 if (is_callable(array($controller, $_fn))) {
                     array_shift($params);
-                    return call_user_func_array(array($controller, $_fn), $params);
+                   return static::controller_call($controller, $_fn, $params);
                 }
                 $_fn = str_replace('-', '_',$params[0]);
                 if (is_callable(array($controller, $_fn))) {
                     array_shift($params);
                     array_pop($params);
-                    return call_user_func_array(array($controller, $_fn), $params);
+                    return static::controller_call($controller, $_fn, $params);
                 }
             } else {
                 array_shift($params);
@@ -114,12 +115,22 @@ class Router extends \Dice\Dice
                 throw new \Exception(sprintf(_("%s\\%s: Route not found"), get_class($controller), $method), 404);
             }
 
-            return call_user_func_array(array($controller, $method), $params);
+            return static::controller_call($controller, $method, $params);
 
         });
 
     }
 
+    private function controller_call($controller, $method, $params = array()) {
+        $response = call_user_func_array(array($controller, $method), $params);
+        
+        if(is_object($response) && is_callable(array($controller, '_serialize'))) {
+            return $controller->_serialize($response);
+        } else {
+            return $response;
+        }
+    }
+    
     /**
      * Matches a DELETE request,
      * Callback is called with regex matches + $_GET arguments
