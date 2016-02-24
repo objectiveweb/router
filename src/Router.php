@@ -74,45 +74,63 @@ class Router extends \Dice\Dice
                 }
             }
 
+            // url parameters
             $params = explode("/", $params);
 
+            // method that will be called
+            $fn = $method;
+            
+            if (!empty($params[0])) {
+                // Try to execute controller.[post|get|put|delete]Name()
+                if (is_callable(array($controller, $_fn = str_replace('-', '_', $method . ucfirst($params[0]))))) {
+                    array_shift($params);
+                    $fn = $_fn;
+                } 
+                // Try to execute controller.name()
+                elseif (is_callable($_fn = array($controller, str_replace('-', '_',$params[0])))) {
+                    array_shift($params);
+                    return call_user_func_array($_fn, $params);
+                }
+                
+            }
+            else {
+                array_shift($params);
+                $fn = ($method == 'get' ? 'index' : $method);
+            }
+            
+            if (!is_callable(array($controller, $fn))) {
+                throw new \Exception(sprintf(_("%s\\%s: Route not found"), get_class($controller), $method), 404);
+            }
+            
             switch ($method) {
                 case "post":
                 case "put":
                 case "patch":
-                    $params[] = Router::parse_post_body();
+                    if(class_exists('\JMS\Serializer\SerializerBuilder')) {
+                        $r = new \ReflectionMethod($controller, $fn);
+                        
+                        // auto deserialize when type hinted
+                        if($fn_param = array_shift($r->getParameters())
+                           && $fn_param->getClass() 
+                           && class_exists('\JMS\Serializer\SerializerBuilder')) {
+                             $serializer = \JMS\Serializer\SerializerBuilder::create()->build();
+                             $params[] = $serializer->deserialize(Router::parse_post_body(false), 
+                                                                  $fn_param->getClass()->getName(), 'json');
+                        }
+                        else {
+                            $params[] = Router::parse_post_body();
+                        }
+                    } else {
+                        $params[] = Router::parse_post_body();
+                    }
+                    break;
                 default:
                     $params[] = $_GET;
                     break;
             }
-
-            // Try to execute controller.[post|get|put|delete]Name() or controller.name()
-            if (!empty($params[0])) {
-                $_fn = str_replace('-', '_', $method . ucfirst($params[0]));
-                if (is_callable(array($controller, $_fn))) {
-                    array_shift($params);
-                    return call_user_func_array(array($controller, $_fn), $params);
-                }
-                $_fn = str_replace('-', '_',$params[0]);
-                if (is_callable(array($controller, $_fn))) {
-                    array_shift($params);
-                    array_pop($params);
-                    return call_user_func_array(array($controller, $_fn), $params);
-                }
-            } else {
-                array_shift($params);
-                if ($method == 'get') $method = 'index';
-            }
-
-
-            if (!is_callable(array($controller, $method))) {
-                throw new \Exception(sprintf(_("%s\\%s: Route not found"), get_class($controller), $method), 404);
-            }
-
-            return call_user_func_array(array($controller, $method), $params);
-
+            
+            return call_user_func_array(array($controller, $fn), $params);
         });
-
     }
 
     /**
@@ -318,10 +336,14 @@ class Router extends \Dice\Dice
 
         header("HTTP/1.1 $code");
 
-        if (is_array($content) || is_object($content)) {
-
+        // parse content
+        if(is_object($content) && class_exists('\JMS\Serializer\SerializerBuilder')) {
+            $serializer = \JMS\Serializer\SerializerBuilder::create()->build();
+            $content = $serializer->serialize($content, 'json');
+        } elseif (is_array($content) || is_object($content)) {
             $content = json_encode($content);
         }
+        
 
         if ($content[0] == '{' || $content[0] == '[') {
             header('Content-type: application/json');
