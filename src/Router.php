@@ -80,7 +80,12 @@ class Router extends \Dice\Dice
                 case "post":
                 case "put":
                 case "patch":
-                    $params[] = Router::parse_post_body();
+                    if(is_callable( array($controller, '_deserialize'))) {
+                        $controller->_deserialize(Router::parse_post_body(false));
+                    }
+                    else {
+                        $params[] = Router::parse_post_body(false);
+                    }
                 default:
                     $params[] = $_GET;
                     break;
