@@ -70,7 +70,7 @@ class Router extends \Dice\Dice
             // Process controller.before, then controller.before[Post|Get|Put|Delete|...]
             foreach (array('before', 'before' . ucfirst($method)) as $callback) {
                 if (is_callable(array($controller, $callback))) {
-                    return static::controller_call($controller, $callback);
+                    call_user_func(array($controller, $callback));
                 }
             }
 

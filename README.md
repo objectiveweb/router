@@ -153,8 +153,8 @@ container to the application.
     // From now on, you can get a configured PDO instance using
     $pdo = $app->create('PDO');
     
-When bound to paths, Controller dependencies are also automatically resolved. For example, 
-if you defined the controller
+When bound to paths, Controller  (And dependencies of those dependencies) get automatically resolved. 
+For example, if you define the controller
 
     <?php
     
@@ -164,7 +164,6 @@ if you defined the controller
     
         private $pdo;
         
-        // A configured instance of PDO will be injected and reused as necessary
         function __construct(PDO $pdo) {
             $this->pdo = pdo;
         }
@@ -174,8 +173,8 @@ if you defined the controller
         }
     }
 
-When `MyApplication\MyController` gets instantiated by the Router, all the constructor 
-dependencies (And dependencies of those dependencies) get automatically resolved.
+When `MyApplication\MyController` gets instantiated by the Router, a configured instance of PDO will 
+be injected and reused as necessary.
 
 You can inject dependencies adding type-hinted parameters to your controller's constructor:
 
