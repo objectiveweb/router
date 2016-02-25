@@ -2,6 +2,8 @@
 
 namespace App\DB;
 
+use App\Model\Product;
+
 /**
  * Example Data Repository for Products
  */
@@ -15,7 +17,7 @@ class ProductsRepository {
     }
     
   // Create a new product
-  public function post($product) {
+  public function post(Product $product) {
     $this->products[] = $product;
   }
   
@@ -25,9 +27,9 @@ class ProductsRepository {
   }
   
   // Get a product by SKU
-  public function &get($sku) {
-    foreach($this->products as &$product) {
-      if($product['sku'] == $sku) {
+  public function get($sku) {
+    foreach($this->products as $product) {
+      if($product->sku == $sku) {
         return $product;
       }
     }
@@ -35,7 +37,7 @@ class ProductsRepository {
     throw new \Exception("Product not found", 404);
   }
   
-  public function put($sku, $data) {
+  public function put($sku, Product $product) {
     
     if(!is_array($data)) {
       throw new \Exception('Invalid request', 406);
@@ -44,7 +46,7 @@ class ProductsRepository {
     $product = &$this->get($sku);
     
     foreach($data as $k => $v) {
-      $product[$k] = $v;
+      $product->$k = $v;
     }
     
     return true;

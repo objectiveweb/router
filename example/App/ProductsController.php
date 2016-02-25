@@ -2,6 +2,8 @@
 
 namespace App;
 
+use App\Model\Product;
+
 class ProductsController {
     
   private $name;
@@ -59,8 +61,10 @@ class ProductsController {
    *
    * You may also handle other methods defining each function (put, patch, options, head, ...)
    */
-  function post($product) {
-    $this->products->post($product);
+  function post(\App\Model\Product $product) {
+      $this->products->post($product);
+      
+      return $product;
   }
   
   
@@ -75,12 +79,11 @@ class ProductsController {
   /**
    * Handles requests to /sale
    */
-  function sale($pct = 10) {
-    return array_map(function($product) use($pct) {
-      $product['price'] = $product['price'] * (1 - $pct/100);
+  function sale($price = 12345) {
+      $products = $this->products->index();
+      $products[0]->price = $price;
       
-      return $product;
-    }, $this->products->index());
+      return $products;
   }
   
   /**

@@ -107,31 +107,29 @@ class Router extends \Dice\Dice
                 case "post":
                 case "put":
                 case "patch":
-                    if(class_exists('\JMS\Serializer\SerializerBuilder')) {
-                        $r = new \ReflectionMethod($controller, $fn);
-                        
-                        $fn_param = array_shift($r->getParameters());
-                        
-                        if($fn_param) {
-                            // auto deserialize when type hinted
-                            if($fn_param->getClass()) {
-                                $serializer = \JMS\Serializer\SerializerBuilder::create()->build();
-                                $params[] = $serializer->deserialize(Router::parse_post_body(false), 
-                                    $fn_param->getClass()->getName(), 'json');
-                            } elseif($fn_param->isArray()) {
-                                $params[] = Router::parse_post_body();
-                            } elseif(is_callable($controller, '_deserialize')) {
-                                $params[] = $controller->_deserialize(Router::parse_post_body(false));
-                            } else {
-                                $params[] = Router::parse_post_body();
-                            }
-                        }
-                        else {
-                            $params[] = Router::parse_post_body();
-                        }
-                    } else {
+                    $r = new \ReflectionMethod($controller, $fn);
+                    $fn_param = array_shift($r->getParameters());
+                    
+                    // auto deserialize when type hinted as class and jms/serializer is available
+                    if($fn_param && $fn_param->getClass() && class_exists('\JMS\Serializer\SerializerBuilder')) {
+                        $serializer = \JMS\Serializer\SerializerBuilder::create()->build();
+                        $type = new \JMS\Serializer\Annotation\Type;
+                        $params[] = $serializer->deserialize(Router::parse_post_body(false), 
+                            $fn_param->getClass()->getName(), 'json');
+                    } 
+                    // hinting as array allows overriding _deserialize
+                    elseif($fn_param && $fn_param->isArray()) {
+                        $params[] = Router::parse_post_body();
+                    } 
+                    // use _deserialize as the default parser for non-type-hinted methods
+                    elseif(is_callable($controller, '_deserialize')) {
+                        $params[] = $controller->_deserialize(Router::parse_post_body(false));
+                    } 
+                    // use default body parser
+                    else {
                         $params[] = Router::parse_post_body();
                     }
+                    
                     break;
                 default:
                     $params[] = $_GET;

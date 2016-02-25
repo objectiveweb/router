@@ -5,10 +5,11 @@ require dirname(__DIR__) . '/vendor/autoload.php';
 require dirname(__DIR__) . '/example/App/HomeController.php';
 require dirname(__DIR__) . '/example/App/ProductsController.php';
 require dirname(__DIR__) . '/example/App/DB/ProductsRepository.php';
+require dirname(__DIR__) . '/example/App/Model/Product.php';
 require __DIR__ . '/TestableRouter.php';
 
 use App\ProductsController;
-
+use App\Model\Product;
 use Test\Router;
 
 class ControllerTest extends PHPUnit_Framework_TestCase
@@ -27,8 +28,8 @@ class ControllerTest extends PHPUnit_Framework_TestCase
             'shared' => true,
             'constructParams' => [
                 array(
-                    array('name' => "Cassete Recorder", 'sku' => 1, 'price' => 100.00),
-                    array('name' => "Tractor Beam", 'sku' => 2, 'price' => 7.99)
+                    new Product(1,"Cassete Recorder", 100.00),
+                    new Product(2, "Tractor Beam", 7.99)
                 )
             ]
         ]);
@@ -49,7 +50,7 @@ class ControllerTest extends PHPUnit_Framework_TestCase
         self::route("GET", "/");
 
         $this->assertEquals(2, count(Router::$response));
-        $this->assertEquals(1, Router::$response[0]['sku']);
+        $this->assertEquals(1, Router::$response[0]->sku);
 
     }
 
@@ -57,7 +58,7 @@ class ControllerTest extends PHPUnit_Framework_TestCase
     {
         self::route("GET", "/2");
 
-        $this->assertEquals(2, Router::$response['sku']);
+        $this->assertEquals(2, Router::$response->sku);
     }
 
     public function testBeforePost()
@@ -76,20 +77,22 @@ class ControllerTest extends PHPUnit_Framework_TestCase
         
         $controller->auth = true;
 
-        $_POST = array(
-            "sku" => 10,
-            "name" => "Test Product",
-            "price" => 89.99
-        );
-
+        $_POST = '{ "sku" : 10, "name" : "Test Product", "price" : 89.99 }';
+        
         $_SERVER['PATH_INFO'] = "/";
         $_SERVER['REQUEST_METHOD'] = "POST";
+        try {
+            self::$app->controller("/", $controller);
+        }
+        catch(\Exception $ex) {
+            exit($ex->getMessage());
+        }
 
-        self::$app->controller("/", $controller);
-        
+        $this->assertInstanceOf('App\Model\Product', Router::$response);
         $this->assertEquals(3, $repository->count());
         $v = $repository->get(10);
-        $this->assertEquals(89.99, $v['price']);
+        $this->assertEquals(89.99, $v->price);
+        
 
     }
 
@@ -99,7 +102,7 @@ class ControllerTest extends PHPUnit_Framework_TestCase
 
         self::route("GET", "/sale");
 
-        $this->assertEquals(10, Router::$response[0]['price']);
+        $this->assertEquals(90, Router::$response[0]->price);
     }
 
     public function testControllerParameters() {
@@ -111,8 +114,8 @@ class ControllerTest extends PHPUnit_Framework_TestCase
     {
         // will call $controller->sale() as there is no $controller->viewSale() defined
         self::route("VIEW", "/sale");
-
-        $this->assertEquals(90, Router::$response[0]['price']);
+        
+        $this->assertEquals(12345, Router::$response[0]->price);
     }
     
     public function testAppRun() {
