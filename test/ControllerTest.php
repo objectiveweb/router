@@ -88,7 +88,7 @@ class ControllerTest extends PHPUnit_Framework_TestCase
             exit($ex->getMessage());
         }
 
-        $this->assertInstanceOf('App\Model\Product', Router::$response);
+        $this->assertEquals('App\Model\Product', get_class(Router::$response));
         $this->assertEquals(3, $repository->count());
         $v = $repository->get(10);
         $this->assertEquals(89.99, $v->price);
