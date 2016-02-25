@@ -36,22 +36,7 @@ class ProductsRepository {
     
     throw new \Exception("Product not found", 404);
   }
-  
-  public function put($sku, Product $product) {
     
-    if(!is_array($data)) {
-      throw new \Exception('Invalid request', 406);
-    }
-    
-    $product = &$this->get($sku);
-    
-    foreach($data as $k => $v) {
-      $product->$k = $v;
-    }
-    
-    return true;
-  }
-  
   public function count() {
     return count($this->products);
   }
