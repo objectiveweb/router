@@ -88,7 +88,8 @@ class ControllerTest extends PHPUnit_Framework_TestCase
             exit($ex->getMessage());
         }
 
-        $this->assertEquals('App\Model\Product', get_class(Router::$response));
+        $r = Router::$response;
+        $this->assertEquals('App\Model\Product', get_class($r));
         $this->assertEquals(3, $repository->count());
         $v = $repository->get(10);
         $this->assertEquals(89.99, $v->price);
@@ -107,8 +108,8 @@ class ControllerTest extends PHPUnit_Framework_TestCase
         $_SERVER['REQUEST_METHOD'] = "PUT";
         
         self::$app->controller("/", $controller);
-        //print_r(Router::$response);
-        $this->assertEquals("Test Rename", Router::$response->name);
+        $e = Router::$response;
+        $this->assertEquals("Test Rename", $e->name);
 
     }
     
