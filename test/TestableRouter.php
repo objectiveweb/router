@@ -7,7 +7,9 @@ class Router extends \Objectiveweb\Router {
   static $code;
   
   static function respond($value, $code = 200) {
-    self::$response = $value;
-    self::$code = $code;
+      
+      global $response_value, $response_code;
+      $response_value = $value;
+      $response_code = $code;
   }
 }

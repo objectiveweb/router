@@ -46,32 +46,36 @@ class ControllerTest extends PHPUnit_Framework_TestCase
 
     public function testIndex()
     {
-
+        global $response_value;
+        
         self::route("GET", "/");
 
-        $this->assertEquals(2, count(Router::$response));
-        $this->assertEquals(1, Router::$response[0]->sku);
+        $this->assertEquals(2, count($response_value));
+        $this->assertEquals(1, $response_value[0]->sku);
 
     }
 
     public function testGet()
     {
+        global $response_value;
         self::route("GET", "/2");
 
-        $this->assertEquals(2, Router::$response->sku);
+        $this->assertEquals(2, $response_value->sku);
     }
 
     public function testBeforePost()
     {
-
+        global $response_code;
         self::route("POST", "/");
 
-        $this->assertEquals(403, Router::$code);
+        $this->assertEquals(403, $response_code);
 
     }
 
     public function testPost()
     {
+        global $response_value;
+        
         $controller = self::$app->create('App\ProductsController');
         $repository = self::$app->create('App\DB\ProductsRepository');
         
@@ -88,8 +92,7 @@ class ControllerTest extends PHPUnit_Framework_TestCase
             exit($ex->getMessage());
         }
 
-        $r = Router::$response;
-        $this->assertEquals('App\Model\Product', get_class($r));
+        $this->assertEquals('App\Model\Product', get_class($response_value));
         $this->assertEquals(3, $repository->count());
         $v = $repository->get(10);
         $this->assertEquals(89.99, $v->price);
@@ -98,6 +101,8 @@ class ControllerTest extends PHPUnit_Framework_TestCase
     }
 
     public function testPut() {
+        global $response_value;
+        
         $repository = self::$app->create('App\DB\ProductsRepository');
         $controller = self::$app->create('App\ProductsController');
         $controller->auth = true;
@@ -108,41 +113,45 @@ class ControllerTest extends PHPUnit_Framework_TestCase
         $_SERVER['REQUEST_METHOD'] = "PUT";
         
         self::$app->controller("/", $controller);
-        $e = Router::$response;
-        $this->assertEquals("Test Rename", $e->name);
+        $this->assertEquals("Test Rename", $response_value->name);
 
     }
     
     public function testCustomMethod()
     {
+        global $response_value;
         // will call $controller->getSale
 
-        self::route("GET", "/sale");
+        self::route("GET", "/sale"); 
 
-        $this->assertEquals(90, Router::$response[0]->price);
+        $this->assertEquals(90, $response_value[0]->price);
     }
 
     public function testControllerParameters() {
+        global $response_value;
         self::route("GET", "/hello");
-        $this->assertEquals("Hello TEST", Router::$response);
+        $this->assertEquals("Hello TEST", $response_value);
     }
     
     public function testCustomMethodFallback()
     {
+        global $response_value;
+        
         // will call $controller->sale() as there is no $controller->viewSale() defined
         self::route("VIEW", "/sale");
         
-        $this->assertEquals(12345, Router::$response[0]->price);
+        $this->assertEquals(12345, $response_value[0]->price);
     }
     
     public function testAppRun() {
+        global $response_value;
         
         $_SERVER['PATH_INFO'] = "/say/hello";
         $_SERVER['REQUEST_METHOD'] = "GET";
 
         self::$app->run('App');
         
-        $this->assertEquals('hello', Router::$response);
+        $this->assertEquals('hello', $response_value);
         
 //         $_SERVER['PATH_INFO'] = "/products";
 //         $_SERVER['REQUEST_METHOD'] = "GET";
