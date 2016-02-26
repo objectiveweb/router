@@ -96,6 +96,22 @@ class ControllerTest extends PHPUnit_Framework_TestCase
 
     }
 
+    public function testPut() {
+        $repository = self::$app->create('App\DB\ProductsRepository');
+        $controller = self::$app->create('App\ProductsController');
+        $controller->auth = true;
+        
+        $_POST = '{ "name" : "Test Rename", "price" : 89.99 }';
+        
+        $_SERVER['PATH_INFO'] = "/10";
+        $_SERVER['REQUEST_METHOD'] = "PUT";
+        
+        self::$app->controller("/", $controller);
+        //print_r(Router::$response);
+        $this->assertEquals("Test Rename", Router::$response->name);
+
+    }
+    
     public function testCustomMethod()
     {
         // will call $controller->getSale

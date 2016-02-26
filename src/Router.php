@@ -108,7 +108,7 @@ class Router extends \Dice\Dice
                 case "put":
                 case "patch":
                     $r = new \ReflectionMethod($controller, $fn);
-                    $fn_param = array_shift($r->getParameters());
+                    $fn_param = array_pop($r->getParameters());
                     
                     // auto deserialize when type hinted as class and jms/serializer is available
                     if($fn_param && $fn_param->getClass() && class_exists('\JMS\Serializer\SerializerBuilder')) {
@@ -120,6 +120,7 @@ class Router extends \Dice\Dice
                     // hinting as array allows overriding _deserialize
                     elseif($fn_param && $fn_param->isArray()) {
                         $params[] = Router::parse_post_body();
+                        
                     } 
                     // use _deserialize as the default parser for non-type-hinted methods
                     elseif(is_callable($controller, '_deserialize')) {
@@ -313,8 +314,9 @@ class Router extends \Dice\Dice
 
         switch ($_SERVER['REQUEST_METHOD']) {
             case 'POST':
+            case 'PUT':
                 if (!empty($_POST)) {
-                    return $_POST;
+                    return is_string($_POST) && $decoded ? json_decode($_POST, $as_array) : $_POST;
                 }
             default:
                 $post_body = file_get_contents('php://input');

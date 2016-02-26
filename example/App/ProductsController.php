@@ -67,7 +67,19 @@ class ProductsController {
       return $product;
   }
   
-  
+  function put($sku, array $data) {
+      $product = $this->get($sku);
+      if(!$product) {
+          throw new \Exception("Product not found!", 404);
+      }
+      
+      foreach($data as $k => $v) {
+          $product->$k = $v;
+      }
+      
+      return $product;
+  }
+    
   /**
    * This function will always override sale() for GET requests
    * The sale() function will act as a fallback for non-defined method (i.e. VIEW /products/sale)
