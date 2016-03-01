@@ -123,7 +123,7 @@ class Router extends \Dice\Dice
                         
                     } 
                     // use _deserialize as the default parser for non-type-hinted methods
-                    elseif(is_callable($controller, '_deserialize')) {
+                    elseif(is_callable(array($controller, '_deserialize'))) {
                         $params[] = $controller->_deserialize(Router::parse_post_body(false));
                     } 
                     // use default body parser
@@ -315,6 +315,7 @@ class Router extends \Dice\Dice
         switch ($_SERVER['REQUEST_METHOD']) {
             case 'POST':
             case 'PUT':
+            case 'PATCH':
                 if (!empty($_POST)) {
                     return is_string($_POST) && $decoded ? json_decode($_POST, $as_array) : $_POST;
                 }
@@ -345,15 +346,15 @@ class Router extends \Dice\Dice
 
         header("HTTP/1.1 $code");
 
-        // parse content
-        if(is_object($content) && class_exists('\JMS\Serializer\SerializerBuilder')) {
+        // parse content if necessary
+        if(is_object($content) || is_object(@$content[0]) &&
+                class_exists('\JMS\Serializer\SerializerBuilder')) {
             $serializer = \JMS\Serializer\SerializerBuilder::create()->build();
             $content = $serializer->serialize($content, 'json');
         } elseif (is_array($content) || is_object($content)) {
             $content = json_encode($content);
         }
         
-
         if ($content[0] == '{' || $content[0] == '[') {
             header('Content-type: application/json');
         }
