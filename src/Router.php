@@ -352,7 +352,7 @@ class Router extends \Dice\Dice
         if(is_object($content) || is_object(@$content[0]) &&
                 class_exists('\JMS\Serializer\SerializerBuilder')) {
             $serializer = \JMS\Serializer\SerializerBuilder::create()->build();
-            $content = $serializer->serialize($content, 'json', SerializationContext::create()->enableMaxDepthChecks());
+            $content = $serializer->serialize($content, 'json', \JMS\Serializer\SerializationContext::create()->enableMaxDepthChecks());
         } elseif (is_array($content) || is_object($content)) {
             $content = json_encode($content);
         }

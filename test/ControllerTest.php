@@ -72,6 +72,9 @@ class ControllerTest extends PHPUnit_Framework_TestCase
 
     }
 
+    /**
+     * @requires HHVM
+     */
     public function testPost()
     {
         global $response_value;
@@ -103,6 +106,9 @@ class ControllerTest extends PHPUnit_Framework_TestCase
 
     }
 
+    /**
+     * @requires HHVM
+     */
     public function testPut() {
         global $response_value;
         
