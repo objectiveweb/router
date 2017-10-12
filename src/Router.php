@@ -50,6 +50,17 @@ class Router extends \Dice\Dice
     }
 
     /**
+     * Runs $callable with arguments if it's callable, otherwise, does nothing
+     * @param $callable
+     */
+    private function _call($callable) {
+        if(is_callable($callable)) {
+            $args = func_get_args();
+            array_shift($args);
+            call_user_func_array($callable, $args);
+        }
+    }
+    /**
      * Binds a controller get/post/put/destroy or custom functions to HTTP methods
      * @param $path String path prefix (/path)
      * @param $controller mixed class name or class
@@ -69,19 +80,17 @@ class Router extends \Dice\Dice
 
             $method = strtolower($method);
 
-            // Process controller.before, then controller.before[Post|Get|Put|Delete|...]
-            foreach (array('before', 'before' . ucfirst($method)) as $callback) {
-                if (is_callable(array($controller, $callback))) {
-                    call_user_func(array($controller, $callback));
-                }
-            }
-
             // url parameters
             $params = explode("/", $params);
 
-            // method that will be called
+            // An GET $path/1/2/3/4 request will be parsed into
+            // $method = GET
+            // $params = [ 1, 2, 3, 4 ]
+
+            // function that will be called (initially the http request method)
             $fn = $method;
-            
+
+            // check if there's a specific method to handle this request
             if (!empty($params[0])) {
                 // Try to execute controller.[post|get|put|delete]Name()
                 if (is_callable(array($controller, $_fn = str_replace('-', '_', $method . ucfirst($params[0]))))) {
@@ -89,21 +98,31 @@ class Router extends \Dice\Dice
                     $fn = $_fn;
                 } 
                 // Try to execute controller.name()
-                elseif (is_callable($_fn = array($controller, str_replace('-', '_',$params[0])))) {
+                elseif (is_callable(array($controller, $_fn = str_replace('-', '_',$params[0])))) {
                     array_shift($params);
-                    return call_user_func_array($_fn, $params);
+                    $fn = $_fn;
+                    //return call_user_func_array($_fn, $params);
                 }
                 // Otherwise the params should not be shifted (i.e. GET /2)
             }
             else {
+                // no url parameters, remove the first item (it is empty)
                 array_shift($params);
+
+                // If we're GETting /, handle it using the index() method
                 $fn = ($method == 'get' ? 'index' : $method);
             }
             
             if (!is_callable(array($controller, $fn))) {
-                throw new \Exception(sprintf(_("%s\\%s: Route not found"), get_class($controller), $method), 404);
+                throw new \Exception(sprintf(_("%s\\%s: Route not found"), get_class($controller), $fn), 404);
             }
-            
+
+            // Process controller.before
+            $this->_call([$controller, 'before'], $method, $fn);
+
+            // Process controller.before[Post|Get|Put|Delete|...]
+            $this->_call([$controller, 'before' . ucfirst($method)], $fn);
+
             switch ($method) {
                 // append the decoded body to the argument list for (post|put|patch).* methods
                 case "post":
