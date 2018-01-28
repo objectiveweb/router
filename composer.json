@@ -1,7 +1,6 @@
 {
     "name": "objectiveweb/router",
     "description": "Lightweight URL Router",
-    "minimum-stability": "stable",
     "autoload": {
         "psr-4": { "Objectiveweb\\": "src/" }
     },
