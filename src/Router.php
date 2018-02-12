@@ -129,8 +129,8 @@ class Router extends \Dice\Dice
                 case "put":
                 case "patch":
                     $r = new \ReflectionMethod($controller, $fn);
-                    $fn_param = array_pop($r->getParameters());
-                    
+                    $rparams= $r->getParameters();
+                    $fn_param = array_pop($rparams);
                     // auto deserialize when type hinted as class and jms/serializer is available
                     if($fn_param && $fn_param->getClass() && class_exists('\JMS\Serializer\SerializerBuilder')) {
                         $serializer = \JMS\Serializer\SerializerBuilder::create()->build();
@@ -157,7 +157,7 @@ class Router extends \Dice\Dice
                     $params[] = $_GET;
                     break;
             }
-            
+
             return call_user_func_array(array($controller, $fn), $params);
         });
     }

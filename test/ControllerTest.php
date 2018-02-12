@@ -28,7 +28,7 @@ class ControllerTest extends PHPUnit_Framework_TestCase
             'shared' => true,
             'constructParams' => [
                 array(
-                    new Product(1,"Cassete Recorder", 100.00),
+                    new Product(1, "Cassete Recorder", 100.00),
                     new Product(2, "Tractor Beam", 7.99)
                 )
             ]
@@ -47,7 +47,7 @@ class ControllerTest extends PHPUnit_Framework_TestCase
     public function testIndex()
     {
         global $response_value;
-        
+
         self::route("GET", "/");
 
         $this->assertEquals(2, count($response_value));
@@ -78,95 +78,97 @@ class ControllerTest extends PHPUnit_Framework_TestCase
     public function testPost()
     {
         global $response_value;
-        
+
         $controller = self::$app->create('App\ProductsController');
         $repository = self::$app->create('App\DB\ProductsRepository');
-        
+
         $controller->auth = true;
 
         $_POST = '{ "sku" : 10, "name" : "Test Product", "price" : 89.99 }';
-        
+
         $_SERVER['PATH_INFO'] = "/";
         $_SERVER['REQUEST_METHOD'] = "POST";
         try {
             self::$app->controller("/", $controller);
-        }
-        catch(\Exception $ex) {
+        } catch (\Exception $ex) {
             exit($ex->getMessage());
         }
 
-        if(is_object($response_value)) { // this test fails on travis
+        if (is_object($response_value)) { // this test fails on travis
             $this->assertEquals('App\Model\Product', get_class($response_value));
         }
-        
+
         $this->assertEquals(3, $repository->count());
         $v = $repository->get(10);
         $this->assertEquals(89.99, $v->price);
-        
+
 
     }
 
     /**
      * @requires HHVM
      */
-    public function testPut() {
+    public function testPut()
+    {
         global $response_value;
-        
+
         $repository = self::$app->create('App\DB\ProductsRepository');
         $controller = self::$app->create('App\ProductsController');
         $controller->auth = true;
-        
+
         $_POST = '{ "name" : "Test Rename", "price" : 89.99 }';
-        
+
         $_SERVER['PATH_INFO'] = "/10";
         $_SERVER['REQUEST_METHOD'] = "PUT";
-        
+
         self::$app->controller("/", $controller);
-        if(is_object($response_value)) {
+        if (is_object($response_value)) {
             $this->assertEquals("Test Rename", $response_value->name);
         }
-        
+
         $e = $repository->get(10);
         $this->assertEquals("Test Rename", $e->name);
 
     }
-    
+
     public function testCustomMethod()
     {
         global $response_value;
         // will call $controller->getSale
 
-        self::route("GET", "/sale"); 
+        self::route("GET", "/sale");
 
         $this->assertEquals(90, $response_value[0]->price);
     }
 
-    public function testControllerParameters() {
+    public function testControllerParameters()
+    {
         global $response_value;
         self::route("GET", "/hello");
         $this->assertEquals("Hello TEST", $response_value);
     }
-    
+
     public function testCustomMethodFallback()
     {
         global $response_value;
-        
+
         // will call $controller->sale() as there is no $controller->viewSale() defined
-        self::route("VIEW", "/sale");
-        
-        $this->assertEquals(12345, $response_value[0]->price);
+        self::route("VIEW", "/sale/8777");
+
+        $this->assertEquals(8777, $response_value[0]->price);
     }
-    
-    public function testAppRun() {
+
+    public function testAppRun()
+    {
         global $response_value;
-        
+
         $_SERVER['PATH_INFO'] = "/say/hello";
         $_SERVER['REQUEST_METHOD'] = "GET";
 
         self::$app->run('App');
-        
+
         $this->assertEquals('hello', $response_value);
-        
+
 //         $_SERVER['PATH_INFO'] = "/products";
 //         $_SERVER['REQUEST_METHOD'] = "GET";
 
@@ -174,6 +176,6 @@ class ControllerTest extends PHPUnit_Framework_TestCase
 //         print_r(Router::$response);
 //         $this->assertEquals(2, count(Router::$response));
 //         $this->assertEquals(1, Router::$response[0]['sku']);
-        
+
     }
 }
