@@ -7,6 +7,16 @@ use JMS\Serializer\SerializationContext;
 class Router extends \Dice\Dice
 {
 
+    private static $serializers = [];
+
+    static function addSerializer($type, $callback) {
+        self::$serializers[$type] = $callback;
+    }
+
+    static function hasSerializer($type) {
+        return !empty(self::$serializers[$type]);
+    }
+
     /**
      * Route a particular request to a callback
      *
@@ -41,10 +51,19 @@ class Router extends \Dice\Dice
             try {
                 $response = call_user_func_array($callback, $params);
                 if ($response !== NULL) {
-                    static::respond($response);
+
+                    if(self::hasSerializer(get_class($response))) {
+                        self::$serializers[get_class($response)]($response);
+                    } else {
+                        self::respond($response);
+                    }
                 }
             } catch (\Exception $ex) {
-                static::respond($ex->getMessage(), $ex->getCode());
+                if(!empty(self::$serializers[get_class($ex)])) {
+                    self::$serializers[get_class($ex)]($ex);
+                } else {
+                    self::respond($ex->getMessage(), $ex->getCode());
+                }
             }
         }
     }
@@ -141,7 +160,6 @@ class Router extends \Dice\Dice
                     // hinting as array allows overriding _deserialize
                     elseif($fn_param && $fn_param->isArray()) {
                         $params[] = Router::parse_post_body();
-                        
                     } 
                     // use _deserialize as the default parser for non-type-hinted methods
                     elseif(is_callable(array($controller, '_deserialize'))) {
@@ -329,7 +347,6 @@ class Router extends \Dice\Dice
 
     }
 
-
     public static function parse_post_body($decoded = true, $as_array = true)
     {
 
@@ -367,15 +384,26 @@ class Router extends \Dice\Dice
 
         header("HTTP/1.1 $code");
 
-        // parse content if necessary
-        if(is_object($content) || is_object(@$content[0]) &&
-                class_exists('\JMS\Serializer\SerializerBuilder')) {
-            $serializer = \JMS\Serializer\SerializerBuilder::create()->build();
-            $content = $serializer->serialize($content, 'json', \JMS\Serializer\SerializationContext::create()->enableMaxDepthChecks());
-        } elseif (is_array($content) || is_object($content)) {
+        if(is_array($content) && is_object($content[0])) {
+            $obj = $content[0];
+        } elseif (is_object($content)) {
+            $obj = $content;
+        }
+
+        // serialize the response if necessary
+        if(!empty($obj)) {
+            if(!empty(self::$serializers[get_class($obj)])) {
+                $content = self::$serializers[get_class($obj)]($content);
+            } elseif (class_exists('\JMS\Serializer\SerializerBuilder')) {
+                $serializer = \JMS\Serializer\SerializerBuilder::create()->build();
+                $content = $serializer->serialize($content, 'json', \JMS\Serializer\SerializationContext::create()->enableMaxDepthChecks());
+            } else {
+                $content = json_encode($content);
+            }
+        } elseif(is_array($content)) {
             $content = json_encode($content);
         }
-        
+
         if ($content[0] == '{' || $content[0] == '[') {
             header('Content-type: application/json');
         }
