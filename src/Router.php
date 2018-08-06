@@ -372,7 +372,21 @@ class Router extends \Dice\Dice
         }
     }
 
-    public static function redirect($to, $code = 307)
+    /**
+     * Emits a `Location` header pointing to $to
+     * @param $to URL to redirect to
+     * @param int $code 3xx redirect code, from the HTTP spec, 301 is the default
+     *                  300 Multiple Choices
+     *                  301 Moved Permanently - This and all future requests should be directed to the given URI.
+     *                  302 Found - Previously "Moved temporarily" - has been superseded by 303 and 307
+     *                  303 See Other - The response to the request can be found under another URI using the GET method.
+     *                  304 Not Modified - Indicates that the resource has not been modified since the version specified by the request headers
+     *                  305 Use Proxy - The requested resource is available only through a proxy, the address for which is provided in the response.
+     *                  306 Switch Proxy - No longer used. Originally meant "Subsequent requests should use the specified proxy."
+     *                  307 Temporary Redirect - In this case, the request should be repeated with another URI; however, future requests should still use the original URI.
+     *                  308 Permanent Redirect - The request and all future requests should be repeated using another URI.
+     */
+    public static function redirect($to, $code = 301)
     {
         header("HTTP/1.1 $code");
         header('Location: ' . Router::url($to));
@@ -411,4 +425,19 @@ class Router extends \Dice\Dice
         exit($content);
     }
 
+    public static function render($_template, $_data = []) {
+
+        if (!is_readable($_template)) {
+            throw new \Exception("Cannot read $_template", 404);
+        }
+
+        extract($_data);
+
+        ob_start();
+        include $_template;
+        $contents = ob_get_contents();
+        ob_end_clean();
+
+        return $contents;
+    }
 }
