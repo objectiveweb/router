@@ -9,11 +9,20 @@ class Router extends \Dice\Dice
 
     private static $serializers = [];
 
-    static function addSerializer($type, $callback) {
+    private $cors = null;
+
+    function setCors($cors)
+    {
+        $this->cors = $cors;
+    }
+
+    static function addSerializer($type, $callback)
+    {
         self::$serializers[$type] = $callback;
     }
 
-    static function hasSerializer($type) {
+    static function hasSerializer($type)
+    {
         return !empty(self::$serializers[$type]);
     }
 
@@ -134,12 +143,31 @@ class Router extends \Dice\Dice
                 // If we're GETting /, handle it using the index() method
                 $fn = ($method == 'get' ? 'index' : $method);
             }
-            
+
             if (!is_callable(array($controller, $fn))) {
+
+                if ($this->cors && $fn == 'options'
+                    && isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_METHOD'])
+                    && isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS'])
+                    && isset($_SERVER['HTTP_ORIGIN'])) {
+
+                    header("Access-Control-Allow-Origin: $this->cors");
+                    header("Access-Control-Allow-Credentials: true");
+                    header("Access-Control-Allow-Methods: GET, PATCH, POST, PUT, DELETE, OPTIONS");
+                    header("Access-Control-Allow-Headers: {$_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']}");
+
+                    exit("");
+                }
+
                 throw new \Exception(sprintf(_("%s\\%s: Route not found"), get_class($controller), $fn), 404);
             }
 
 
+            if ($this->cors) {
+                header("Access-Control-Allow-Origin: $this->cors");
+                header("Access-Control-Allow-Credentials: true");
+                header("Access-Control-Expose-Headers: content-range");
+            }
 
             switch ($method) {
                 // append the decoded body to the argument list for (post|put|patch).* methods
