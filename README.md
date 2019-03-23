@@ -87,12 +87,22 @@ In this case, the request is mapped to the corresponding class method as follows
         
         }
         
+        // Runs before all actions
+        function before() {
+            
+        }
+        
+        // Runs before post();
+        function beforePost($body) {
+        
+        }
+        
         // POST /
         function post($body) {
         
         }
         
-        // Other request methods are also valid, i.e. head(), options(), etc
+        // Other request methods are also valid, i.e. head(), options(), beforeHead(), etc
         
     }
 

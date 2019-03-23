@@ -51,15 +51,14 @@ class Router extends \Dice\Dice
             try {
                 $response = call_user_func_array($callback, $params);
                 if ($response !== NULL) {
-
-                    if(self::hasSerializer(get_class($response))) {
+                    if (is_object($response) && self::hasSerializer(get_class($response))) {
                         self::$serializers[get_class($response)]($response);
                     } else {
                         self::respond($response);
                     }
                 }
             } catch (\Exception $ex) {
-                if(!empty(self::$serializers[get_class($ex)])) {
+                if (!empty(self::$serializers[get_class($ex)])) {
                     self::$serializers[get_class($ex)]($ex);
                 } else {
                     self::respond($ex->getMessage(), $ex->getCode());
@@ -72,13 +71,15 @@ class Router extends \Dice\Dice
      * Runs $callable with arguments if it's callable, otherwise, does nothing
      * @param $callable
      */
-    private function _call($callable) {
-        if(is_callable($callable)) {
+    private function _call($callable)
+    {
+        if (is_callable($callable)) {
             $args = func_get_args();
             array_shift($args);
             call_user_func_array($callable, $args);
         }
     }
+
     /**
      * Binds a controller get/post/put/destroy or custom functions to HTTP methods
      * @param $path String path prefix (/path)
@@ -115,16 +116,13 @@ class Router extends \Dice\Dice
                 if (is_callable(array($controller, $_fn = str_replace('-', '_', $method . ucfirst($params[0]))))) {
                     array_shift($params);
                     $fn = $_fn;
-                } 
-                // Try to execute controller.name()
-                elseif (is_callable(array($controller, $_fn = str_replace('-', '_',$params[0])))) {
+                } // Try to execute controller.name()
+                elseif (is_callable(array($controller, $_fn = str_replace('-', '_', $params[0])))) {
                     array_shift($params);
                     $fn = $_fn;
-                    //return call_user_func_array($_fn, $params);
                 }
                 // Otherwise the params should not be shifted (i.e. GET /2)
-            }
-            else {
+            } else {
                 // no url parameters, remove the first item (it is empty)
                 array_shift($params);
 
@@ -136,11 +134,7 @@ class Router extends \Dice\Dice
                 throw new \Exception(sprintf(_("%s\\%s: Route not found"), get_class($controller), $fn), 404);
             }
 
-            // Process controller.before
-            $this->_call([$controller, 'before'], $method, $fn);
 
-            // Process controller.before[Post|Get|Put|Delete|...]
-            $this->_call([$controller, 'before' . ucfirst($method)], $fn);
 
             switch ($method) {
                 // append the decoded body to the argument list for (post|put|patch).* methods
@@ -148,32 +142,43 @@ class Router extends \Dice\Dice
                 case "put":
                 case "patch":
                     $r = new \ReflectionMethod($controller, $fn);
-                    $rparams= $r->getParameters();
+                    $rparams = $r->getParameters();
                     $fn_param = array_pop($rparams);
                     // auto deserialize when type hinted as class and jms/serializer is available
-                    if($fn_param && $fn_param->getClass() && class_exists('\JMS\Serializer\SerializerBuilder')) {
+                    if ($fn_param && $fn_param->getClass() && class_exists('\JMS\Serializer\SerializerBuilder')) {
                         $serializer = \JMS\Serializer\SerializerBuilder::create()->build();
                         $type = new \JMS\Serializer\Annotation\Type;
-                        $params[] = $serializer->deserialize(Router::parse_post_body(false), 
+                        $params[] = $serializer->deserialize(Router::parse_post_body(false),
                             $fn_param->getClass()->getName(), 'json');
-                    } 
-                    // hinting as array allows overriding _deserialize
-                    elseif($fn_param && $fn_param->isArray()) {
+                    } // hinting as array allows overriding _deserialize
+                    elseif ($fn_param && $fn_param->isArray()) {
                         $params[] = Router::parse_post_body();
-                    } 
-                    // use _deserialize as the default parser for non-type-hinted methods
-                    elseif(is_callable(array($controller, '_deserialize'))) {
+                    } // use _deserialize as the default parser for non-type-hinted methods
+                    elseif (is_callable(array($controller, '_deserialize'))) {
                         $params[] = $controller->_deserialize(Router::parse_post_body(false));
-                    } 
-                    // use default body parser
+                    } // use default body parser
                     else {
                         $params[] = Router::parse_post_body();
                     }
-                    
+
                     break;
                 default:
                     $params[] = $_GET;
                     break;
+            }
+
+            // Process controller.before
+            $p = $this->_call([$controller, 'before'], $method, $fn, $params);
+
+            if($p) {
+                $params = $p;
+            }
+
+            // Process controller.before[Post|Get|Put|Delete|...]
+            $p = $this->_call([$controller, 'before' . ucfirst($method)], $fn, $params);
+
+            if($p) {
+                $params = $p;
             }
 
             return call_user_func_array(array($controller, $fn), $params);
@@ -398,15 +403,18 @@ class Router extends \Dice\Dice
 
         header("HTTP/1.1 $code");
 
-        if(is_array($content) && is_object($content[0])) {
+        if (is_array($content) && !empty($content[0]) && is_object($content[0])) {
             $obj = $content[0];
         } elseif (is_object($content)) {
             $obj = $content;
         }
 
         // serialize the response if necessary
-        if(!empty($obj)) {
-            if(!empty(self::$serializers[get_class($obj)])) {
+        if (!empty($obj)) {
+            if (is_callable([$obj, 'render'])) {
+                // TODO passar content_type se tiver a header accept
+                $content = call_user_func([$obj, 'render']);
+            } elseif (!empty(self::$serializers[get_class($obj)])) {
                 $content = self::$serializers[get_class($obj)]($content);
             } elseif (class_exists('\JMS\Serializer\SerializerBuilder')) {
                 $serializer = \JMS\Serializer\SerializerBuilder::create()->build();
@@ -414,7 +422,7 @@ class Router extends \Dice\Dice
             } else {
                 $content = json_encode($content);
             }
-        } elseif(is_array($content)) {
+        } elseif (is_array($content)) {
             $content = json_encode($content);
         }
 
@@ -425,7 +433,8 @@ class Router extends \Dice\Dice
         exit($content);
     }
 
-    public static function render($_template, $_data = []) {
+    public static function render($_template, $_data = [])
+    {
 
         if (!is_readable($_template)) {
             throw new \Exception("Cannot read $_template", 404);
