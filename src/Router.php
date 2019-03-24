@@ -106,7 +106,7 @@ class Router extends \Dice\Dice
         $args = func_get_args();
         array_splice($args, 0, 2);
 
-        $this->route("([A-Z]+) $path/?(.*)", function ($method, $params) use ($controller, $args) {
+        $this->route("([A-Z]+) $path/?(.*)", function ($method, $params) use ($path, $controller, $args) {
 
             if (is_string($controller)) {
                 $controller = $this->create($controller, $args);
@@ -214,7 +214,26 @@ class Router extends \Dice\Dice
                 $params = $p;
             }
 
-            return call_user_func_array(array($controller, $fn), $params);
+            $response = call_user_func_array(array($controller, $fn), $params);
+
+            // if client wans json, return right away - response will be encoded by route() and respond()
+            if(strpos($_SERVER['HTTP_ACCEPT'], 'json')) {
+                return $response;
+            }
+
+            // Check if there's a template available for this method
+            $template_root = dirname(dirname(dirname(dirname(__DIR__)))).'/templates';
+
+            $templates = array_unique(["$template_root$path/$fn.php", "$template_root$path/$method.php"]);
+
+            foreach($templates as $template) {
+                if(is_readable($template)) {
+                    return Router::render($template, $response);
+                }
+            }
+
+            // in case no template is available, return the response
+            return $response;
         });
     }
 
@@ -380,9 +399,7 @@ class Router extends \Dice\Dice
             }
 
             return ($PATH == '/' ? '' : $PATH) . ($str[0] == '/' ? $str : '/' . $str);
-
         }
-
     }
 
     public static function parse_post_body($decoded = true, $as_array = true)
@@ -459,7 +476,7 @@ class Router extends \Dice\Dice
             $content = json_encode($content);
         }
 
-        if ($content[0] == '{' || $content[0] == '[') {
+        if (!empty($content) && $content[0] == '{' || $content[0] == '[') {
             header('Content-type: application/json');
         }
 
