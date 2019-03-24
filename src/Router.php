@@ -52,7 +52,7 @@ class Router extends \Dice\Dice
 
         // support PATH_INFO when using mod_rewrite
         if ($_SERVER['PATH_INFO'] == '/' && substr($_SERVER['REQUEST_URI'], 0, strlen($_SERVER['SCRIPT_NAME'])) != $_SERVER['SCRIPT_NAME']) {
-            $_SERVER['PATH_INFO'] = substr($_SERVER['REQUEST_URI'], strlen(dirname($_SERVER['SCRIPT_NAME'])));
+            $_SERVER['PATH_INFO'] = substr($_SERVER['REQUEST_URI'], strlen(dirname($_SERVER['SCRIPT_NAME'])) - 1);
         }
 
         if (preg_match(sprintf("/^%s$/", str_replace('/', '\/', $request)), "{$_SERVER['REQUEST_METHOD']} {$_SERVER['PATH_INFO']}", $params)) {
