@@ -203,31 +203,35 @@ class Router extends \Dice\Dice
             // Process controller.before
             $p = $this->_call([$controller, 'before'], $method, $fn, $params);
 
-            if($p) {
+            if ($p) {
                 $params = $p;
             }
 
             // Process controller.before[Post|Get|Put|Delete|...]
             $p = $this->_call([$controller, 'before' . ucfirst($method)], $fn, $params);
 
-            if($p) {
+            if ($p) {
                 $params = $p;
             }
 
             $response = call_user_func_array(array($controller, $fn), $params);
 
             // if client wans json, return right away - response will be encoded by route() and respond()
-            if(strpos($_SERVER['HTTP_ACCEPT'], 'json')) {
+            if (strpos($_SERVER['HTTP_ACCEPT'], 'json')) {
                 return $response;
             }
 
             // Check if there's a template available for this method
-            $template_root = dirname(dirname(dirname(dirname(__DIR__)))).'/templates';
+            $template_root = dirname(dirname(dirname(dirname(__DIR__)))) . '/templates';
 
             $templates = array_unique(["$template_root$path/$fn.php", "$template_root$path/$method.php"]);
 
-            foreach($templates as $template) {
-                if(is_readable($template)) {
+            foreach ($templates as $template) {
+                if (is_readable($template)) {
+                    if (is_readable("$template_root/_functions.php")) {
+                        include "$template_root/_functions.php";
+                    }
+
                     return Router::render($template, $response);
                 }
             }
@@ -324,25 +328,26 @@ class Router extends \Dice\Dice
     /**
      * Bootstraps an endpoint based on $namespace
      */
-    public function run($namespace) {
-      
+    public function run($namespace)
+    {
+
         $router = $this;
-      
-        $this->route("([A-Z]+) /(.*)", function($method, $path) use ($router, $namespace) {
-            
-            if(!empty($path)) {
-                $path = explode("/", $path); 
-                $class = "$namespace\\".ucfirst($path[0])."Controller";
-              
-                if(class_exists($class)) {
+
+        $this->route("([A-Z]+) /(.*)", function ($method, $path) use ($router, $namespace) {
+
+            if (!empty($path)) {
+                $path = explode("/", $path);
+                $class = "$namespace\\" . ucfirst($path[0]) . "Controller";
+
+                if (class_exists($class)) {
                     $router->controller("/{$path[0]}", $class);
                 }
             }
-          
+
             $router->controller("/", "$namespace\\HomeController");
         });
     }
-  
+
     /**
      * Constructs an URL for a given path
      *  - If the given url is external or exists as a file on disk, return that file's url
@@ -491,7 +496,6 @@ class Router extends \Dice\Dice
         }
 
         extract($_data);
-
         ob_start();
         include $_template;
         $contents = ob_get_contents();
