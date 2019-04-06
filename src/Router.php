@@ -51,6 +51,10 @@ class Router extends \Dice\Dice
         }
 
         // support PATH_INFO when using mod_rewrite
+        if(empty($_SERVER['REDIRECT_URL'])) {
+            $_SERVER['REDIRECT_URL'] = preg_replace('/\?.*$/', '', $_SERVER['REQUEST_URI']);
+        }
+
         if ($_SERVER['PATH_INFO'] == '/' && substr($_SERVER['REDIRECT_URL'], 0, strlen($_SERVER['SCRIPT_NAME'])) != $_SERVER['SCRIPT_NAME']) {
             $_SERVER['PATH_INFO'] = substr($_SERVER['REDIRECT_URL'], strlen(dirname($_SERVER['SCRIPT_NAME'])) - 1);
         }
