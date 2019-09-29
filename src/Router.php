@@ -55,8 +55,10 @@ class Router extends \Dice\Dice
             $_SERVER['REDIRECT_URL'] = preg_replace('/\?.*$/', '', $_SERVER['REQUEST_URI']);
         }
 
-        if ($_SERVER['REDIRECT_URL'] != '/' && substr($_SERVER['REDIRECT_URL'], 0, strlen($_SERVER['SCRIPT_NAME'])) != $_SERVER['SCRIPT_NAME']) {
+        if ($_SERVER['REDIRECT_URL'] != '/' && substr($_SERVER['REDIRECT_URL'], 0, strlen($_SERVER['SCRIPT_NAME'])) == $_SERVER['SCRIPT_NAME']) {
             $_SERVER['PATH_INFO'] = substr($_SERVER['REDIRECT_URL'], strlen(dirname($_SERVER['SCRIPT_NAME'])));
+        } else {
+            $_SERVER['PATH_INFO'] = $_SERVER['REDIRECT_URL'];
         }
 
         if (preg_match(sprintf("/^%s$/", str_replace('/', '\/', $request)), "{$_SERVER['REQUEST_METHOD']} {$_SERVER['PATH_INFO']}", $params)) {
