@@ -46,18 +46,20 @@ class Router extends \Dice\Dice
             throw new \Exception(sprintf(_('%s: Invalid callback'), $callback), 500);
         }
 
-        if (!isset($_SERVER['PATH_INFO'])) {
-            $_SERVER['PATH_INFO'] = '/';
-        }
-
         // support PATH_INFO when using mod_rewrite
         if(empty($_SERVER['REDIRECT_URL'])) {
             $_SERVER['REDIRECT_URL'] = preg_replace('/\?.*$/', '', $_SERVER['REQUEST_URI']);
         }
 
-        if ($_SERVER['REDIRECT_URL'] != '/' && substr($_SERVER['REDIRECT_URL'], 0, strlen($_SERVER['SCRIPT_NAME'])) != $_SERVER['SCRIPT_NAME']) {
-            $_SERVER['PATH_INFO'] = substr($_SERVER['REDIRECT_URL'], strlen(dirname($_SERVER['SCRIPT_NAME'])));
+        $p = sprintf('/%s(\\/%s)?(.*)/',
+            str_replace('/', '\\/', dirname($_SERVER['SCRIPT_NAME'])),
+            str_replace('.', '\\.', basename($_SERVER['SCRIPT_NAME']))
+        );
+
+        if (empty($_SERVER['PATH_INFO']) && preg_match($p, $_SERVER['REDIRECT_URL'], $m)) {
+            $_SERVER['PATH_INFO'] = $m[2][0] != '/' ? '/' . $m[2] : $m[2];
         }
+
 
         if (preg_match(sprintf("/^%s$/", str_replace('/', '\/', $request)), "{$_SERVER['REQUEST_METHOD']} {$_SERVER['PATH_INFO']}", $params)) {
             array_shift($params);
@@ -165,7 +167,6 @@ class Router extends \Dice\Dice
 
                 throw new \Exception(sprintf(_("%s\\%s: Route not found"), get_class($controller), $fn), 404);
             }
-
 
             if ($this->cors) {
                 header("Access-Control-Allow-Origin: $this->cors");
