@@ -227,9 +227,17 @@ class Router extends \Dice\Dice
             }
 
             // Check if there's a template available for this method
-            $template_root = dirname(dirname(dirname(dirname(__DIR__)))) . '/templates';
+            $_SCRIPT_DIR = dirname($_SERVER['SCRIPT_NAME']);
+            $_SCRIPT_NAME = basename($_SERVER['SCRIPT_NAME'], '.php');
 
-            $templates = array_unique(["$template_root$path/$fn.php", "$template_root$path/$method.php"]);
+            $template_root = sprintf("%s/templates%s%s%s",
+                dirname(dirname(dirname(dirname(__DIR__)))),
+                $_SCRIPT_DIR,
+                $_SCRIPT_NAME == 'index' ? '' : '/'.$_SCRIPT_NAME,
+                $path != '/' ? $path.'/' : $path
+            );
+
+            $templates = array_unique(["$template_root$fn.php", "$template_root$method.php"]);
 
             foreach ($templates as $template) {
                 if (is_readable($template)) {
