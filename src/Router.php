@@ -493,7 +493,7 @@ class Router extends \Dice\Dice
             $content = json_encode($content);
         }
 
-        if (!empty($content) && $content[0] == '{' || $content[0] == '[') {
+        if (!empty($content) && is_string($content) && ($content[0] == '{' || $content[0] == '[')) { 
             header('Content-type: application/json');
         }
 
