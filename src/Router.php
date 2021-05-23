@@ -81,6 +81,9 @@ class Router extends \Dice\Dice
                 if (!empty(self::$serializers[get_class($ex)])) {
                     self::$serializers[get_class($ex)]($ex);
                 } else {
+                    if($ex->getCode() >= 500) {
+                        error_log($ex->getMessage()." @ ".$ex->getTraceAsString());
+                    }
                     self::respond($ex->getMessage(), $ex->getCode());
                 }
             }
