@@ -84,7 +84,7 @@ class Router extends \Dice\Dice
                     if($ex->getCode() >= 500) {
                         error_log($ex->getMessage()." @ ".$ex->getTraceAsString());
                     }
-                    self::respond($ex->getMessage(), $ex->getCode());
+                    self::respond([ 'message' => $ex->getMessage() ], $ex->getCode());
                 }
             }
         }
