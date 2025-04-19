@@ -80,7 +80,10 @@ class Router extends \Dice\Dice
                 if (!empty(self::$serializers[get_class($ex)])) {
                     self::$serializers[get_class($ex)]($ex);
                 } else {
-                    self::respond($ex->getMessage(), $ex->getCode());
+                    if ($ex->getCode() >= 500) {
+                        error_log(get_class($ex) . ' ' . $ex->getMessage() . " @ " . $ex->getTraceAsString());
+                    }
+                    self::respond(['exception' => get_class($ex), 'message' => $ex->getMessage()], $ex->getCode());
                 }
             }
         }
