@@ -115,7 +115,9 @@ class Router extends \Dice\Dice
         $args = func_get_args();
         array_splice($args, 0, 2);
 
-        $this->route("([A-Z]+) (?:$path$|$path/)(.*)", function ($method, $params) use ($path, $controller, $args) {
+        $re = sprintf("([A-Z]+) (?:$path$|%s)(.*)", $path == '/' ? '/' : $path . '/');
+
+        $this->route($re, function ($method, $params) use ($path, $controller, $args) {
 
             if (is_string($controller)) {
                 $controller = $this->create($controller, $args);
