@@ -30,11 +30,11 @@ class Router extends \Dice\Dice
      * Route a particular request to a callback
      *
      *
-     * @throws \Exception
      * @param $request - HTTP Request Method + Request-URI Regex e.g. "GET /something/([0-9]+)/?"
      * @param $callback - A valid callback. Regex capture groups are passed as arguments to this function, using
      *   array('Namespace\ClassNameAsString', 'method') triggers the dependency injector to instantiate the given class
      * @return void or data - If the callback returns something, it's responded accordingly, otherwise, nothing happens
+     * @throws \Exception
      */
     public function route($request, $callback)
     {
@@ -46,17 +46,18 @@ class Router extends \Dice\Dice
             throw new \Exception(sprintf(_('%s: Invalid callback'), $callback), 500);
         }
 
-        if (!isset($_SERVER['PATH_INFO'])) {
-            $_SERVER['PATH_INFO'] = '/';
-        }
-
         // support PATH_INFO when using mod_rewrite
-        if(empty($_SERVER['REDIRECT_URL'])) {
+        if (empty($_SERVER['REDIRECT_URL'])) {
             $_SERVER['REDIRECT_URL'] = preg_replace('/\?.*$/', '', $_SERVER['REQUEST_URI']);
         }
 
-        if ($_SERVER['REDIRECT_URL'] != '/' && substr($_SERVER['REDIRECT_URL'], 0, strlen($_SERVER['SCRIPT_NAME'])) != $_SERVER['SCRIPT_NAME']) {
-            $_SERVER['PATH_INFO'] = substr($_SERVER['REDIRECT_URL'], strlen(dirname($_SERVER['SCRIPT_NAME'])));
+        $p = sprintf('/%s(\\/%s)?(.*)/',
+            str_replace('/', '\\/', dirname($_SERVER['SCRIPT_NAME'])),
+            str_replace('.', '\\.', basename($_SERVER['SCRIPT_NAME']))
+        );
+
+        if (empty($_SERVER['PATH_INFO']) && preg_match($p, $_SERVER['REDIRECT_URL'], $m)) {
+            $_SERVER['PATH_INFO'] = $m[2][0] != '/' ? '/' . $m[2] : $m[2];
         }
 
         if (preg_match(sprintf("/^%s$/", str_replace('/', '\/', $request)), "{$_SERVER['REQUEST_METHOD']} {$_SERVER['PATH_INFO']}", $params)) {
@@ -88,14 +89,17 @@ class Router extends \Dice\Dice
     /**
      * Runs $callable with arguments if it's callable, otherwise, does nothing
      * @param $callable
+     * @return mixed|null
      */
     private function _call($callable)
     {
         if (is_callable($callable)) {
             $args = func_get_args();
             array_shift($args);
-            call_user_func_array($callable, $args);
+            return call_user_func_array($callable, $args);
         }
+
+        return null;
     }
 
     /**
@@ -110,7 +114,9 @@ class Router extends \Dice\Dice
         $args = func_get_args();
         array_splice($args, 0, 2);
 
-        $this->route("([A-Z]+) $path/?(.*)", function ($method, $params) use ($path, $controller, $args) {
+        $re = sprintf("([A-Z]+) (?:$path$|%s)(.*)", $path == '/' ? '/' : $path . '/');
+
+        $this->route($re, function ($method, $params) use ($path, $controller, $args) {
 
             if (is_string($controller)) {
                 $controller = $this->create($controller, $args);
