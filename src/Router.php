@@ -30,11 +30,11 @@ class Router extends \Dice\Dice
      * Route a particular request to a callback
      *
      *
-     * @throws \Exception
      * @param $request - HTTP Request Method + Request-URI Regex e.g. "GET /something/([0-9]+)/?"
      * @param $callback - A valid callback. Regex capture groups are passed as arguments to this function, using
      *   array('Namespace\ClassNameAsString', 'method') triggers the dependency injector to instantiate the given class
      * @return void or data - If the callback returns something, it's responded accordingly, otherwise, nothing happens
+     * @throws \Exception
      */
     public function route($request, $callback)
     {
@@ -47,7 +47,7 @@ class Router extends \Dice\Dice
         }
 
         // support PATH_INFO when using mod_rewrite
-        if(empty($_SERVER['REDIRECT_URL'])) {
+        if (empty($_SERVER['REDIRECT_URL'])) {
             $_SERVER['REDIRECT_URL'] = preg_replace('/\?.*$/', '', $_SERVER['REQUEST_URI']);
         }
 
@@ -81,10 +81,10 @@ class Router extends \Dice\Dice
                 if (!empty(self::$serializers[get_class($ex)])) {
                     self::$serializers[get_class($ex)]($ex);
                 } else {
-                    if($ex->getCode() >= 500) {
-                        error_log($ex->getMessage()." @ ".$ex->getTraceAsString());
+                    if ($ex->getCode() >= 500) {
+                        error_log(get_class($ex) . ' ' . $ex->getMessage() . " @ " . $ex->getTraceAsString());
                     }
-                    self::respond([ 'message' => $ex->getMessage() ], $ex->getCode());
+                    self::respond(['exception' => get_class($ex), 'message' => $ex->getMessage()], $ex->getCode());
                 }
             }
         }
@@ -93,14 +93,17 @@ class Router extends \Dice\Dice
     /**
      * Runs $callable with arguments if it's callable, otherwise, does nothing
      * @param $callable
+     * @return mixed|null
      */
     private function _call($callable)
     {
         if (is_callable($callable)) {
             $args = func_get_args();
             array_shift($args);
-            call_user_func_array($callable, $args);
+            return call_user_func_array($callable, $args);
         }
+
+        return null;
     }
 
     /**
@@ -134,13 +137,14 @@ class Router extends \Dice\Dice
 
             // function that will be called (initially the http request method)
             $fn = $method;
-
             // check if there's a specific method to handle this request
             if (!empty($params[0])) {
+
                 // Try to execute controller.[post|get|put|delete]Name()
                 if (is_callable(array($controller, $_fn = str_replace('-', '_', $method . ucfirst($params[0]))))) {
                     array_shift($params);
                     $fn = $_fn;
+
                 } // Try to execute controller.name()
                 elseif (is_callable(array($controller, $_fn = str_replace('-', '_', $params[0])))) {
                     array_shift($params);
@@ -163,7 +167,7 @@ class Router extends \Dice\Dice
                     header("Access-Control-Allow-Origin: $this->cors");
                     header("Access-Control-Allow-Credentials: true");
                     header("Access-Control-Allow-Methods: GET, PATCH, POST, PUT, DELETE, OPTIONS");
-                    if(isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']))
+                    if (isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']))
                         header("Access-Control-Allow-Headers: {$_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']}");
 
                     exit("");
@@ -225,7 +229,7 @@ class Router extends \Dice\Dice
 
             $response = call_user_func_array(array($controller, $fn), $params);
 
-            // if client wans json, return right away - response will be encoded by route() and respond()
+            // if client wants json, return right away - response will be encoded by route() and respond()
             if (strpos($_SERVER['HTTP_ACCEPT'], 'json')) {
                 return $response;
             }
@@ -236,9 +240,9 @@ class Router extends \Dice\Dice
 
             $template_root = sprintf("%s/templates%s%s%s",
                 dirname(dirname(dirname(dirname(__DIR__)))),
-                $_SCRIPT_DIR,
-                $_SCRIPT_NAME == 'index' ? '' : '/'.$_SCRIPT_NAME,
-                $path != '/' ? $path.'/' : $path
+                $_SCRIPT_DIR == '/' ? '' : $_SCRIPT_DIR,
+                $_SCRIPT_NAME == 'index' ? '' : '/' . $_SCRIPT_NAME,
+                $path != '/' ? $path . '/' : $path
             );
 
             $templates = array_unique(["$template_root$fn.php", "$template_root$method.php"]);
@@ -498,7 +502,7 @@ class Router extends \Dice\Dice
             $content = json_encode($content);
         }
 
-        if (!empty($content) && is_string($content) && ($content[0] == '{' || $content[0] == '[')) { 
+        if (!empty($content) && is_string($content) && ($content[0] == '{' || $content[0] == '[')) {
             header('Content-type: application/json');
         }
 
@@ -512,7 +516,10 @@ class Router extends \Dice\Dice
             throw new \Exception("Cannot read $_template", 404);
         }
 
-        extract($_data);
+        if (is_array($_data)) {
+            extract($_data);
+        }
+
         ob_start();
         include $_template;
         $contents = ob_get_contents();
@@ -521,7 +528,8 @@ class Router extends \Dice\Dice
         return $contents;
     }
 
-    public static function isAjax() {
+    public static function isAjax()
+    {
         return isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
     }
 }
