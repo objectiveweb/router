@@ -60,6 +60,7 @@ class Router extends \Dice\Dice
             $_SERVER['PATH_INFO'] = $m[2][0] != '/' ? '/' . $m[2] : $m[2];
         }
 
+
         if (preg_match(sprintf("/^%s$/", str_replace('/', '\/', $request)), "{$_SERVER['REQUEST_METHOD']} {$_SERVER['PATH_INFO']}", $params)) {
             array_shift($params);
 
@@ -136,13 +137,14 @@ class Router extends \Dice\Dice
 
             // function that will be called (initially the http request method)
             $fn = $method;
-
             // check if there's a specific method to handle this request
             if (!empty($params[0])) {
+
                 // Try to execute controller.[post|get|put|delete]Name()
                 if (is_callable(array($controller, $_fn = str_replace('-', '_', $method . ucfirst($params[0]))))) {
                     array_shift($params);
                     $fn = $_fn;
+
                 } // Try to execute controller.name()
                 elseif (is_callable(array($controller, $_fn = str_replace('-', '_', $params[0])))) {
                     array_shift($params);
@@ -173,7 +175,6 @@ class Router extends \Dice\Dice
 
                 throw new \Exception(sprintf(_("%s\\%s: Route not found"), get_class($controller), $fn), 404);
             }
-
 
             if ($this->cors) {
                 header("Access-Control-Allow-Origin: $this->cors");
@@ -228,15 +229,23 @@ class Router extends \Dice\Dice
 
             $response = call_user_func_array(array($controller, $fn), $params);
 
-            // if client wans json, return right away - response will be encoded by route() and respond()
+            // if client wants json, return right away - response will be encoded by route() and respond()
             if (strpos($_SERVER['HTTP_ACCEPT'], 'json')) {
                 return $response;
             }
 
             // Check if there's a template available for this method
-            $template_root = dirname(dirname(dirname(dirname(__DIR__)))) . '/templates';
+            $_SCRIPT_DIR = dirname($_SERVER['SCRIPT_NAME']);
+            $_SCRIPT_NAME = basename($_SERVER['SCRIPT_NAME'], '.php');
 
-            $templates = array_unique(["$template_root$path/$fn.php", "$template_root$path/$method.php"]);
+            $template_root = sprintf("%s/templates%s%s%s",
+                dirname(dirname(dirname(dirname(__DIR__)))),
+                $_SCRIPT_DIR == '/' ? '' : $_SCRIPT_DIR,
+                $_SCRIPT_NAME == 'index' ? '' : '/' . $_SCRIPT_NAME,
+                $path != '/' ? $path . '/' : $path
+            );
+
+            $templates = array_unique(["$template_root$fn.php", "$template_root$method.php"]);
 
             foreach ($templates as $template) {
                 if (is_readable($template)) {
@@ -493,7 +502,7 @@ class Router extends \Dice\Dice
             $content = json_encode($content);
         }
 
-        if (!empty($content) && $content[0] == '{' || $content[0] == '[') {
+        if (!empty($content) && is_string($content) && ($content[0] == '{' || $content[0] == '[')) {
             header('Content-type: application/json');
         }
 
@@ -507,12 +516,20 @@ class Router extends \Dice\Dice
             throw new \Exception("Cannot read $_template", 404);
         }
 
-        extract($_data);
+        if (is_array($_data)) {
+            extract($_data);
+        }
+
         ob_start();
         include $_template;
         $contents = ob_get_contents();
         ob_end_clean();
 
         return $contents;
+    }
+
+    public static function isAjax()
+    {
+        return isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
     }
 }
