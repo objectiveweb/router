@@ -155,16 +155,15 @@ class Router extends \Dice\Dice
             }
 
             if (!is_callable(array($controller, $fn))) {
-
                 if ($this->cors && $fn == 'options'
                     && isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_METHOD'])
-                    && isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS'])
                     && isset($_SERVER['HTTP_ORIGIN'])) {
 
                     header("Access-Control-Allow-Origin: $this->cors");
                     header("Access-Control-Allow-Credentials: true");
                     header("Access-Control-Allow-Methods: GET, PATCH, POST, PUT, DELETE, OPTIONS");
-                    header("Access-Control-Allow-Headers: {$_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']}");
+                    if (isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']))
+                        header("Access-Control-Allow-Headers: {$_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']}");
 
                     exit("");
                 }
