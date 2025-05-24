@@ -57,7 +57,7 @@ class Router extends \Dice\Dice
         );
 
         if (empty($_SERVER['PATH_INFO']) && preg_match($p, $_SERVER['REDIRECT_URL'], $m)) {
-            $_SERVER['PATH_INFO'] = $m[2][0] != '/' ? '/' . $m[2] : $m[2];
+            $_SERVER['PATH_INFO'] = (empty($m[2]) || $m[2][0] != '/') ? '/' . $m[2] : $m[2];
         }
 
 
@@ -230,7 +230,7 @@ class Router extends \Dice\Dice
             $response = call_user_func_array(array($controller, $fn), $params);
 
             // if client wants json, return right away - response will be encoded by route() and respond()
-            if (strpos($_SERVER['HTTP_ACCEPT'], 'json')) {
+            if (!empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'json')) {
                 return $response;
             }
 
@@ -455,7 +455,7 @@ class Router extends \Dice\Dice
 
     /**
      * Emits a `Location` header pointing to $to
-     * @param $to URL to redirect to
+     * @param $to string The URL to redirect to
      * @param int $code 3xx redirect code, from the HTTP spec, 301 is the default
      *                  300 Multiple Choices
      *                  301 Moved Permanently - This and all future requests should be directed to the given URI.
@@ -511,7 +511,6 @@ class Router extends \Dice\Dice
 
     public static function render($_template, $_data = [])
     {
-
         if (!is_readable($_template)) {
             throw new \Exception("Cannot read $_template", 404);
         }
