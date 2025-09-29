@@ -4,12 +4,18 @@ namespace Objectiveweb;
 
 use JMS\Serializer\SerializationContext;
 
-class Router extends \Dice\Dice
+class Router
 {
 
     private static $serializers = [];
 
     private $cors = null;
+    private \Dice\Dice $dice;
+
+    function __construct()
+    {
+        $this->dice = new \Dice\Dice();
+    }
 
     function setCors($cors)
     {
@@ -24,6 +30,16 @@ class Router extends \Dice\Dice
     static function hasSerializer($type)
     {
         return !empty(self::$serializers[$type]);
+    }
+
+    public function addRule($name, array $rule)
+    {
+        $this->dice = $this->dice->addRule($name, $rule);
+    }
+
+    public function create(string $name, array $args = [], array $share = [])
+    {
+        return $this->dice->create($name, $args, $share);
     }
 
     /**
