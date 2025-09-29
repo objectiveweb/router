@@ -3,6 +3,7 @@
 namespace Objectiveweb;
 
 use JMS\Serializer\SerializationContext;
+use Objectiveweb\Router\Middleware;
 
 class Router
 {
@@ -198,13 +199,15 @@ class Router
                 header("Access-Control-Expose-Headers: content-range");
             }
 
+            $refClass = new \ReflectionClass($controller);
+            $refMethod = new \ReflectionMethod($controller, $fn);
+
             switch ($method) {
                 // append the decoded body to the argument list for (post|put|patch).* methods
                 case "post":
                 case "put":
                 case "patch":
-                    $r = new \ReflectionMethod($controller, $fn);
-                    $rparams = $r->getParameters();
+                    $rparams = $refMethod->getParameters();
                     $fn_param = array_pop($rparams);
                     // auto deserialize when type hinted as class and jms/serializer is available
                     if ($fn_param && $fn_param->getClass() && class_exists('\JMS\Serializer\SerializerBuilder')) {
@@ -229,21 +232,59 @@ class Router
                     break;
             }
 
-            // Process controller.before
-            $p = $this->_call([$controller, 'before'], $method, $fn, $params);
+            // Check middlewares
+            $middlewares = [];
 
-            if ($p) {
-                $params = $p;
+            // Class Middlewares
+            foreach ($refClass->getAttributes(Middleware::class, \ReflectionAttribute::IS_INSTANCEOF) as $attr) {
+                $middleware = $attr->newInstance();
+                $middlewares[get_class($middleware)] = $middleware;
             }
 
-            // Process controller.before[Post|Get|Put|Delete|...]
-            $p = $this->_call([$controller, 'before' . ucfirst($method)], $fn, $params);
-
-            if ($p) {
-                $params = $p;
+            // Method Middlewares
+            foreach ($refMethod->getAttributes(Middleware::class, \ReflectionAttribute::IS_INSTANCEOF) as $attr) {
+                $middleware = $attr->newInstance();
+                unset($middlewares[get_class($middleware)]); // ensure method middleware is inserted after class middlewares
+                $middlewares[get_class($middleware)] = $middleware;
             }
 
-            $response = call_user_func_array(array($controller, $fn), $params);
+
+            foreach ($middlewares as $mw) {
+                //  Auto-inject dependencies from the controller
+                $attrRef = new \ReflectionObject($mw);
+                foreach ($attrRef->getProperties() as $prop) {
+                    $propType = $prop->getType()?->getName();
+                    $propName = $prop->getName();
+
+                    if ($propType && property_exists($controller, $propName)) {
+                        $controllerPropType = (new \ReflectionProperty($controller, $propName))->getType()?->getName();
+
+                        // Inject only if types match
+                        if ($controllerPropType && $controllerPropType === $propType) {
+                            $mw->$propName = $controller->$propName;
+                        }
+                    }
+                }
+
+                // and execute before() middleware functions
+                if (method_exists($mw, 'before')) {
+                    $p = call_user_func([$mw, 'before'], $method, $fn, $params);
+
+                    if ($p) {
+                        $params = $p;
+                    }
+                }
+            }
+
+            $response = call_user_func_array([$controller, $fn], $params);
+
+            // execute after() middleware functions in reverse order
+            foreach (array_reverse($middlewares) as $mw) {
+                $afterResult = call_user_func([$mw, 'after'], $method, $fn, $params, $response);
+                if ($afterResult !== null) {
+                    $response = $afterResult; // allow after() to modify result
+                }
+            }
 
             // if client wants json, return right away - response will be encoded by route() and respond()
             if (!empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'json')) {
