@@ -241,13 +241,12 @@ class Router
                 $middlewares[get_class($middleware)] = $middleware;
             }
 
-            // Method Middlewares
+            // Method Middlewares (override class middlewares if they exist with the same class name)
             foreach ($refMethod->getAttributes(Middleware::class, \ReflectionAttribute::IS_INSTANCEOF) as $attr) {
                 $middleware = $attr->newInstance();
                 unset($middlewares[get_class($middleware)]); // ensure method middleware is inserted after class middlewares
                 $middlewares[get_class($middleware)] = $middleware;
             }
-
 
             foreach ($middlewares as $mw) {
                 //  Auto-inject dependencies from the controller
