@@ -294,14 +294,16 @@ class Router
             $_SCRIPT_DIR = dirname($_SERVER['SCRIPT_NAME']);
             $_SCRIPT_NAME = basename($_SERVER['SCRIPT_NAME'], '.php');
 
-            $template_root = sprintf("%s/templates%s%s%s",
-                dirname(dirname(dirname(dirname(__DIR__)))),
+            $template_root = sprintf("%s/templates",
+                dirname(dirname(dirname(dirname(__DIR__)))));
+
+            $template_path = sprintf("%s%s%s",
                 $_SCRIPT_DIR == '/' ? '' : $_SCRIPT_DIR,
                 $_SCRIPT_NAME == 'index' ? '' : '/' . $_SCRIPT_NAME,
                 $path != '/' ? $path . '/' : $path
             );
 
-            $templates = array_unique(["$template_root$fn.php", "$template_root$method.php"]);
+            $templates = array_unique(["$template_root$template_path$fn.php", "$template_root$template_path$method.php"]);
 
             foreach ($templates as $template) {
                 if (is_readable($template)) {
@@ -309,7 +311,14 @@ class Router
                         include "$template_root/_functions.php";
                     }
 
+                    if (is_readable("$template_root/_index.php") ) {
+                        $response['_template'] = $template;
+                        $template = "$template_root/_index.php";
+                    }
+
+                    error_log(json_encode($response));
                     return Router::render($template, $response);
+
                 }
             }
 
@@ -565,18 +574,19 @@ class Router
         exit($content);
     }
 
-    public static function render($_template, $_data = [])
+    public static function render($_main_template, $_data = [])
     {
-        if (!is_readable($_template)) {
-            throw new \Exception("Cannot read $_template", 404);
+        if (!is_readable($_main_template)) {
+            throw new \Exception("Cannot read $_main_template", 404);
         }
+
+        ob_start();
 
         if (is_array($_data)) {
             extract($_data);
         }
 
-        ob_start();
-        include $_template;
+        include $_main_template;
         $contents = ob_get_contents();
         ob_end_clean();
 
