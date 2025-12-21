@@ -4,6 +4,7 @@ namespace Objectiveweb;
 
 use JMS\Serializer\SerializationContext;
 use Objectiveweb\Router\Middleware;
+use Objectiveweb\Router\Template;
 
 class Router
 {
@@ -292,22 +293,11 @@ class Router
 
             foreach ($templates as $template) {
                 if (is_readable($template)) {
-                    if (is_readable("$template_root/_functions.php")) {
-                        include "$template_root/_functions.php";
-                    }
-
-                    if (is_readable("$template_root/_index.php") ) {
-                        $response['_template'] = $template;
-                        $template = "$template_root/_index.php";
-                    }
-
-                    error_log(json_encode($response));
-                    return Router::render($template, $response);
-
+                    return new Template($template, $response);
                 }
             }
 
-            // in case no template is available, return the response
+            // in case no template is available, return the raw response
             return $response;
         });
     }
@@ -557,25 +547,6 @@ class Router
         }
 
         exit($content);
-    }
-
-    public static function render($_main_template, $_data = [])
-    {
-        if (!is_readable($_main_template)) {
-            throw new \Exception("Cannot read $_main_template", 404);
-        }
-
-        ob_start();
-
-        if (is_array($_data)) {
-            extract($_data);
-        }
-
-        include $_main_template;
-        $contents = ob_get_contents();
-        ob_end_clean();
-
-        return $contents;
     }
 
     public static function isAjax()
