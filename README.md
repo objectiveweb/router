@@ -246,7 +246,7 @@ You can also fetch the twig reference using
     
     $twig = $app->create('Twig_Environment');
     
-### Rules
+### Dependency Injection Rules
 
 Dice Rules can be configured with these properties:
 
