@@ -148,7 +148,7 @@ class Router
             // url parameters
             $params = explode("/", $params);
 
-            // An GET $path/1/2/3/4 request will be parsed into
+            // A GET $path/1/2/3/4 request will be parsed into
             // $method = GET
             // $params = [ 1, 2, 3, 4 ]
 
@@ -237,41 +237,25 @@ class Router
 
             // Class Middlewares
             foreach ($refClass->getAttributes(Middleware::class, \ReflectionAttribute::IS_INSTANCEOF) as $attr) {
-                $middleware = $attr->newInstance();
-                $middlewares[get_class($middleware)] = $middleware;
+                $middlewares[$attr->getName()] = $attr->getArguments();
             }
 
             // Method Middlewares (override class middlewares if they exist with the same class name)
             foreach ($refMethod->getAttributes(Middleware::class, \ReflectionAttribute::IS_INSTANCEOF) as $attr) {
-                $middleware = $attr->newInstance();
-                unset($middlewares[get_class($middleware)]); // ensure method middleware is inserted after class middlewares
-                $middlewares[get_class($middleware)] = $middleware;
+                unset($middlewares[$attr->getName()]); // ensure method middleware is inserted after class middlewares
+                $middlewares[$attr->getName()] = $attr->getArguments();
             }
 
-            foreach ($middlewares as $mw) {
-                //  Auto-inject dependencies from the controller
-                $attrRef = new \ReflectionObject($mw);
-                foreach ($attrRef->getProperties() as $prop) {
-                    $propType = $prop->getType()?->getName();
-                    $propName = $prop->getName();
+            // With the middlewares list, let's instantiate and execute each
+            foreach ($middlewares as $mw_class => $mw_args) {
+                // instantiate middleware
+                $mw = $this->create($mw_class, $mw_args, [ get_class($controller).$mw_class ]);
 
-                    if ($propType && property_exists($controller, $propName)) {
-                        $controllerPropType = (new \ReflectionProperty($controller, $propName))->getType()?->getName();
+                $middlewares[$mw_class] = $mw;
 
-                        // Inject only if types match
-                        if ($controllerPropType && $controllerPropType === $propType) {
-                            $mw->$propName = $controller->$propName;
-                        }
-                    }
-                }
-
-                // and execute before() middleware functions
+                // execute before() middleware functions
                 if (method_exists($mw, 'before')) {
-                    $p = call_user_func([$mw, 'before'], $method, $fn, $params);
-
-                    if ($p) {
-                        $params = $p;
-                    }
+                    $params = call_user_func([$mw, 'before'], $method, $fn, $params);
                 }
             }
 
@@ -279,14 +263,15 @@ class Router
 
             // execute after() middleware functions in reverse order
             foreach (array_reverse($middlewares) as $mw) {
-                $afterResult = call_user_func([$mw, 'after'], $method, $fn, $params, $response);
-                if ($afterResult !== null) {
-                    $response = $afterResult; // allow after() to modify result
-                }
+                $response = call_user_func([$mw, 'after'], $method, $fn, $params, $response);
             }
 
-            // if client wants json, return right away - response will be encoded by route() and respond()
-            if (!empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'json')) {
+            // if response is an object OR if the client wants json, return right away
+            // the response will be encoded by route() and respond()
+            if (
+                (is_object($response) && is_callable([$response, 'render']))
+                || (!empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'json'))
+            ) {
                 return $response;
             }
 
