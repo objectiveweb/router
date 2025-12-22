@@ -8,22 +8,30 @@ Middleware is implemented as PHP classes that can be applied to controllers or s
 
 ## Middleware Class Structure
 
-All middleware classes must extend the base `Objectiveweb\Router\Middleware` class:
+All middleware classes must implement the `Objectiveweb\Router\MiddlewareInterface`:
 
 ```php
 <?php
 
 namespace Objectiveweb\Router;
 
-class Middleware 
+interface MiddlewareInterface
 {
-    public function before($method, $fn, $params): mixed {
-        return $params;
-    }
+    /**
+     * Runs before controller execution.
+     * Must return updated params or throw.
+     */
+    public function before(
+        string $method,
+        string $fn,
+        array  $params
+    ): mixed;
 
-    public function after($method, $fn, $params, $response): mixed {
-        return $response;
-    }
+    public function after(
+        string $method,
+        string $fn,
+        array  $params,
+        array|null  $response): mixed;
 }
 ```
 
@@ -40,7 +48,7 @@ Applied to all methods in a controller:
 
 use Objectiveweb\Router\Middleware;
 
-#[Middleware]
+#[Middleware(MyMiddleware::class, 'arg1', 'arg2')]
 class MyController 
 {
     // This middleware will be applied to all methods in this controller
@@ -58,7 +66,7 @@ use Objectiveweb\Router\Middleware;
 
 class MyController 
 {
-    #[Middleware]
+    #[Middleware(MyMiddleware::class, 'arg1', 'arg2')]
     public function index() 
     {
         // This middleware will only be applied to the index method
@@ -66,38 +74,15 @@ class MyController
 }
 ```
 
-## Middleware Instantiation
-
-Middleware classes are now instantiated using the dependency injection container (`$this->create`) instead of manual instantiation. This ensures that dependencies are properly injected into middleware classes, similar to how controllers are instantiated.
-
-In the controller method, middleware instantiation happens like this:
-
-```php
-// With the middlewares list, let's instantiate and execute each
-foreach ($middlewares as $mw_class => $mw_args) {
-    // instantiate middleware
-    $mw = $this->create($mw_class, $mw_args, [ get_class($controller).$mw_class ]);
-
-    $middlewares[$mw_class] = $mw;
-
-    // execute before() middleware functions
-    if (method_exists($mw, 'before')) {
-        $params = call_user_func([$mw, 'before'], $method, $fn, $params);
-    }
-}
-```
-
-This approach ensures that middleware classes can receive dependencies through constructor injection, just like controllers do.
-
 ## Middleware Execution Flow
 
 When a request is processed:
 
 1. **Class-level middleware** is executed first (in the order they are defined)
 2. **Method-level middleware** is executed after class middleware (if present)
-3. **Before hooks** are called with the HTTP method, function name, and parameters
+3. **For each Middleware: Before hooks** are called with the HTTP method, function name, and parameters
 4. **Controller method** is executed
-5. **After hooks** are called with the HTTP method, function name, parameters, and response
+5. **For each Middleware: After hooks** are called with the HTTP method, function name, parameters, and response
 
 ## Method Signatures
 
@@ -125,9 +110,9 @@ Here's a complete example of a middleware implementation:
 
 namespace Breakfastweekend\App\Middleware;
 
-use Objectiveweb\Router\Middleware;
+use Objectiveweb\Router\MiddlewareInterface;
 
-class LoggingMiddleware extends Middleware
+class LoggingMiddleware implements MiddlewareInterface
 {
     public function before($method, $fn, $params): mixed
     {
@@ -159,74 +144,16 @@ use Objectiveweb\Router\Middleware;
 
 class MyController 
 {
-    #[LoggingMiddleware]
+    #[Middleware(LoggingMiddleware::class)]
     public function index()
     {
         return ['message' => 'Hello World'];
     }
     
-    #[LoggingMiddleware]
+    #[Middleware(LoggingMiddleware::class)]
     public function get($id)
     {
         return ['id' => $id, 'data' => 'Some data'];
-    }
-}
-```
-
-## Authentication Middleware Example
-
-The framework includes a built-in authentication middleware example:
-
-```php
-<?php
-
-namespace Objectiveweb\Auth\Attributes;
-
-use Objectiveweb\Auth\AuthException;
-use Objectiveweb\Router\Middleware;
-
-use Attribute;
-
-#[Attribute(Attribute::TARGET_CLASS | Attribute::TARGET_METHOD)]
-class RequireRole extends Middleware
-{
-    public \Objectiveweb\Auth $auth;
-
-    private $role;
-
-    public function __construct(string|array $role)
-    {
-        $this->role = is_array($role) ? $role : [$role];
-    }
-
-    public function after($method, $fn, $params, $response): mixed
-    {
-        if ($this->auth->check() && is_array($response) && !isset($response['_user'])) {
-            $response['_user'] = $this->auth->user();
-        }
-
-        return $response;
-    }
-
-    public function before($method, $fn, $params): mixed
-    {
-        if ($this->auth->check()) {
-            $scopes = \Objectiveweb\Auth::AUTHENTICATED;
-
-            $this->user = $this->auth->user();
-
-            if (is_array($this->user['scopes'])) {
-                $scopes = array_merge($scopes, $this->user['scopes']);
-            }
-        } else {
-            $scopes = \Objectiveweb\Auth::ANONYMOUS;
-        }
-
-        if (count(array_intersect($this->role, $scopes)) == 0) {
-            throw new AuthException("Forbidden", $scopes[0] == 'anon' ? 401 : 403);
-        }
-
-        return $params;
     }
 }
 ```
@@ -238,25 +165,3 @@ class RequireRole extends Middleware
 3. **Response Modification**: Use `after()` to modify response data after controller execution
 4. **Error Handling**: Middleware can throw exceptions that will be handled by the router
 5. **Dependency Injection**: Middleware can receive dependencies through constructor injection
-
-## Advanced Usage
-
-Middleware can also receive dependencies from the controller:
-
-```php
-<?php
-
-class MyMiddleware extends Middleware
-{
-    public $auth; // Will be injected from controller
-    
-    public function before($method, $fn, $params): mixed
-    {
-        // Access injected dependencies
-        if ($this->auth->check()) {
-            // Do something with auth
-        }
-        
-        return $params;
-    }
-}

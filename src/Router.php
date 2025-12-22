@@ -238,13 +238,16 @@ class Router
 
             // Class Middlewares
             foreach ($refClass->getAttributes(Middleware::class, \ReflectionAttribute::IS_INSTANCEOF) as $attr) {
-                $middlewares[$attr->getName()] = $attr->getArguments();
+                /** @var Middleware $mw */
+                $mw = $attr->newInstance();
+                $middlewares[$mw->getClass()] = $mw->getArgs();
             }
 
             // Method Middlewares (override class middlewares if they exist with the same class name)
             foreach ($refMethod->getAttributes(Middleware::class, \ReflectionAttribute::IS_INSTANCEOF) as $attr) {
-                unset($middlewares[$attr->getName()]); // ensure method middleware is inserted after class middlewares
-                $middlewares[$attr->getName()] = $attr->getArguments();
+                $mw = $attr->newInstance();
+                unset($middlewares[$mw->getClass()]); // ensure method middleware is inserted after class middlewares
+                $middlewares[$mw->getClass()] = $mw->getArgs();
             }
 
             // With the middlewares list, let's instantiate and execute each
