@@ -14,9 +14,22 @@ class Router
     private $cors = null;
     private \Dice\Dice $dice;
 
-    function __construct()
+    function __construct(?string $_root = null, private array $config = [])
     {
         $this->dice = new \Dice\Dice();
+
+        // By default, set root to the project root (../../.. from vendor/ow/router)
+        if (!$_root) {
+            $_root = dirname(dirname(dirname(__DIR__)));
+        }
+
+        $defaults = [
+            'middlewares' => [],
+            'template.root' => $_root . '/templates',
+            'template.layout' => null,
+        ];
+
+        $this->config = array_merge($defaults, $config);
     }
 
     function setCors($cors)
@@ -34,7 +47,7 @@ class Router
         return !empty(self::$serializers[$type]);
     }
 
-    public function addRule($name, array $rule)
+    public function addRule($name, array $rule): void
     {
         $this->dice = $this->dice->addRule($name, $rule);
     }
@@ -42,6 +55,35 @@ class Router
     public function create(string $name, array $args = [], array $share = [])
     {
         return $this->dice->create($name, $args, $share);
+    }
+
+    /**
+     * Return a new Template() object based on default root and optional layout
+     *
+     * @param $names
+     * @param array $_data
+     * @param string|null $layout
+     * @return Template|null
+     * @throws \Exception
+     */
+    public function template($names, array $_data, string|null $_layout = null): Template|null
+    {
+        $_root = $this->config["template.root"];
+        $_layout = $_layout ?? $this->config["template.layout"];
+
+        if (is_array($names)) {
+            foreach ($names as $name) {
+                if (is_readable($_root . DIRECTORY_SEPARATOR . $name . '.php')) {
+                    return new Template($_root, $name, $_data, $_layout);
+                }
+            }
+        } else {
+            if (is_readable($_root . DIRECTORY_SEPARATOR . $names . '.php')) {
+                return new Template($_root, $names, $_data, $_layout);
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -192,6 +234,7 @@ class Router
             }
 
             if (!is_callable(array($controller, $fn))) {
+                // TODO move to Middleware
                 if ($this->cors && $fn == 'options'
                     && isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_METHOD'])
                     && isset($_SERVER['HTTP_ORIGIN'])) {
@@ -248,7 +291,10 @@ class Router
             }
 
             // Check middlewares
-            $middlewares = [];
+
+            // Start with default set of middlewares (applied to all requests)
+            // Note: will be overridden by class Attributes if mw class is the same
+            $middlewares = $this->config['middlewares'];
 
             // Class Middlewares
             foreach ($refClass->getAttributes(Middleware::class, \ReflectionAttribute::IS_INSTANCEOF) as $attr) {
@@ -267,7 +313,7 @@ class Router
             // With the middlewares list, let's instantiate and execute each
             foreach ($middlewares as $mw_class => $mw_args) {
                 // instantiate middleware
-                $mw = $this->create($mw_class, $mw_args, [ get_class($controller).$mw_class ]);
+                $mw = $this->create($mw_class, $mw_args, [get_class($controller) . $mw_class]);
 
                 $middlewares[$mw_class] = $mw;
 
@@ -275,6 +321,12 @@ class Router
                 if (method_exists($mw, 'before')) {
                     $params = call_user_func([$mw, 'before'], $method, $fn, $params);
                 }
+            }
+
+            // we're testing this here in case Middlewares end the request prematurely
+            // (needed for OPTIONS in CORS)
+            if (!is_callable([$controller, $fn])) {
+                throw new \Exception(sprintf(_("%s\\%s: Route not found"), get_class($controller), $fn), 404);
             }
 
             $response = call_user_func_array([$controller, $fn], $params);
@@ -297,25 +349,18 @@ class Router
             $_SCRIPT_DIR = dirname($_SERVER['SCRIPT_NAME']);
             $_SCRIPT_NAME = basename($_SERVER['SCRIPT_NAME'], '.php');
 
-            $template_root = sprintf("%s/templates",
-                dirname(dirname(dirname(dirname(__DIR__)))));
-
             $template_path = sprintf("%s%s%s",
                 $_SCRIPT_DIR == '/' ? '' : $_SCRIPT_DIR,
                 $_SCRIPT_NAME == 'index' ? '' : '/' . $_SCRIPT_NAME,
                 $path != '/' ? $path . '/' : $path
             );
 
-            $templates = array_unique(["$template_root$template_path$fn.php", "$template_root$template_path$method.php"]);
+            $templates = array_unique(["$template_path$fn", "$$template_path$method"]);
 
-            foreach ($templates as $template) {
-                if (is_readable($template)) {
-                    return new Template($template, $response);
-                }
-            }
+            $template = $this->template($templates, $response);
 
             // in case no template is available, return the raw response
-            return $response;
+            return $template ?? $response;
         });
     }
 

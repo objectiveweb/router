@@ -14,21 +14,20 @@ namespace Objectiveweb\Router;
 class Template {
 
     /**
-     * Root directory for layout files
-     * 
-     * @var string
-     */
-    public static $root;
-
-    /**
      * Template constructor
-     * 
+     *
+     * @param string $_root Template root directory
      * @param string $template Path to the template file
      * @param array $data Data to be passed to the template
      * @param string|null $layout Layout file name (without extension)
      */
-    function __construct(private $_template, private $_data = [], private $_layout = null) {
+    function __construct(private $_root, private string $_template, private array $_data = [], private string|null $_layout = null) {
 
+        $this->_template = $this->_root . DIRECTORY_SEPARATOR . $_template . '.php';
+
+        if (!is_readable($this->_template)) {
+            throw new \Exception("Cannot read $this->_template", 500);
+        }
     }
 
     /**
@@ -41,10 +40,6 @@ class Template {
      * @throws \Exception If the template file cannot be read
      */
     function render() {
-
-        if (!is_readable($this->_template)) {
-            throw new \Exception("Cannot read $this->_template", 500);
-        }
 
         if (is_array($this->_data)) {
             extract($this->_data);
@@ -59,10 +54,10 @@ class Template {
         ob_end_clean();
 
         if($this->_layout) {
-            if(is_readable(self::$root . '/_layouts/' . $this->_layout . '.php')) {
+            if(is_readable($this->_root . '/_layouts/' . $this->_layout . '.php')) {
 
                 ob_start();
-                include self::$root . '/_layouts/' . $this->_layout . '.php';
+                include $this->_root . '/_layouts/' . $this->_layout . '.php';
 
                 $_contents = ob_get_contents();
                 ob_end_clean();
