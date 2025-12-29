@@ -56,13 +56,6 @@ class Router
      */
     public function route($request, $callback)
     {
-        if (is_array($callback) && is_string($callback[0])) {
-            $callback[0] = $this->create($callback[0]);
-        }
-
-        if (!is_callable($callback)) {
-            throw new \Exception(sprintf(_('%s: Invalid callback'), $callback), 500);
-        }
 
         // support PATH_INFO when using mod_rewrite
         if (empty($_SERVER['REDIRECT_URL'])) {
@@ -78,9 +71,24 @@ class Router
             $_SERVER['PATH_INFO'] = (empty($m[2]) || $m[2][0] != '/') ? '/' . $m[2] : $m[2];
         }
 
-
         if (preg_match(sprintf("/^%s$/", str_replace('/', '\/', $request)), "{$_SERVER['REQUEST_METHOD']} {$_SERVER['PATH_INFO']}", $params)) {
+
             array_shift($params);
+
+            // route expects a callable
+            // this can be:
+            //  - a function()
+            //  - [ $instance, 'method' ]
+            //  - [ 'Classname', 'method' ]
+
+            // For the third case, we need to instantiate the class
+            if (is_array($callback) && is_string($callback[0])) {
+                $callback[0] = $this->create($callback[0], $params);
+            }
+
+            if (!is_callable($callback)) {
+                throw new \Exception(sprintf(_('%s: Invalid callback'), $callback), 500);
+            }
 
             if (func_num_args() > 2) {
                 $params = array_merge($params, array_slice(func_get_args(), 2));
@@ -136,9 +144,15 @@ class Router
         $args = func_get_args();
         array_splice($args, 0, 2);
 
-        $re = sprintf("([A-Z]+) (?:$path$|%s)(.*)", $path == '/' ? '/' : $path . '/');
+        $re = sprintf("([A-Z]+) %s(?:$|/)(.*)", $path);
+        $this->route($re, function ($method, $params) use ($re, $path, $controller, $args) {
+            if (func_num_args() > 2) {
+                $callback_args = func_get_args();
+                array_splice($callback_args, 0, 1);
 
-        $this->route($re, function ($method, $params) use ($path, $controller, $args) {
+                $params = array_pop($callback_args);
+                $args = [...$args, ...$callback_args];
+            }
 
             if (is_string($controller)) {
                 $controller = $this->create($controller, $args);
