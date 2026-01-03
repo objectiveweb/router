@@ -572,7 +572,13 @@ class Router
     public static function redirect($to, $code = 301)
     {
         header("HTTP/1.1 $code");
-        header('Location: ' . Router::url($to));
+
+        if(preg_match('#^https?://#', $to)) {
+            header("Location: $to");
+        }
+        else {
+            header('Location: ' . Router::url($to));
+        }
         exit();
     }
 
