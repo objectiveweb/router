@@ -17,5 +17,5 @@ interface MiddlewareInterface
         string $method,
         string $fn,
         array  $params,
-        array|null  $response): mixed;
+        mixed  $response): mixed;
 }

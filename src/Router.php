@@ -61,15 +61,16 @@ class Router
      * Return a new Template() object based on default root and optional layout
      *
      * @param $names
-     * @param array $_data
+     * @param array|null $_data
      * @param string|null $layout
      * @return Template|null
      * @throws \Exception
      */
-    public function template($names, array $_data, string|null $_layout = null): Template|null
+    public function template($names, ?array $_data, string|null $_layout = null): Template|null
     {
         $_root = $this->config["template.root"];
         $_layout = $_layout ?? $this->config["template.layout"];
+        $_data = $_data ?? [];
 
         if (is_array($names)) {
             foreach ($names as $name) {
