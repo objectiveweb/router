@@ -10,11 +10,11 @@
         }
     ],
     "require": {
-      "php": ">=7.4.0",
-      "objectiveweb/Dice": "dev-master"
+      "php": ">=8.0",
+      "objectiveweb/dice": "dev-master"
     },
     "require-dev": {
-      "phpunit/phpunit": "4.*",
+      "phpunit/phpunit": "^12.0",
         "jms/serializer": "~1.1"
     },
     "license": "MIT"
