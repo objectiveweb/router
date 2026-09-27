@@ -607,7 +607,9 @@ class Router
             } else {
                 $content = json_encode($content);
             }
-        } elseif (is_array($content)) {
+        }
+
+        if (!is_string($content)) {
             $content = json_encode($content);
         }
 
