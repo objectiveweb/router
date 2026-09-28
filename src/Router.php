@@ -18,9 +18,15 @@ class Router
     {
         $this->dice = new \Dice\Dice();
 
-        // By default, set root to the project root (../../.. from vendor/ow/router)
+        // By default, use the Composer root package (the application root).
+        // Fall back to ../../../../ from vendor/objectiveweb/router/src.
         if (!$_root) {
-            $_root = dirname(dirname(dirname(__DIR__)));
+            if (class_exists(\Composer\InstalledVersions::class)) {
+                $rootPackage = \Composer\InstalledVersions::getRootPackage();
+                $_root = $rootPackage['install_path'] ?? null;
+            }
+
+            $_root ??= dirname(dirname(dirname(dirname(__DIR__))));
         }
 
         $defaults = [
@@ -351,7 +357,7 @@ class Router
                 $path != '/' ? $path . '/' : $path
             );
 
-            $templates = array_unique(["$template_path$fn", "$$template_path$method"]);
+            $templates = array_unique(["$template_path$fn", "$template_path$method"]);
 
             $template = $this->template($templates, $response);
 
