@@ -54,6 +54,90 @@ class TemplateTest extends TestCase
         $this->assertSame('project-root', $template->render());
     }
 
+    public function testMissingAcceptPrefersHtmlTemplate(): void
+    {
+        global $response_value;
+
+        [$router, $controller] = $this->createNegotiatedTemplateRoute();
+        unset($_SERVER['HTTP_ACCEPT']);
+
+        $router->controller('/', $controller);
+
+        $this->assertInstanceOf(Template::class, $response_value);
+    }
+
+    public function testWildcardAcceptPrefersHtmlTemplate(): void
+    {
+        global $response_value;
+
+        [$router, $controller] = $this->createNegotiatedTemplateRoute();
+        $_SERVER['HTTP_ACCEPT'] = '*/*';
+
+        $router->controller('/', $controller);
+
+        $this->assertInstanceOf(Template::class, $response_value);
+    }
+
+    public function testJsonAcceptBypassesTemplate(): void
+    {
+        global $response_value;
+
+        [$router, $controller] = $this->createNegotiatedTemplateRoute();
+        $_SERVER['HTTP_ACCEPT'] = 'application/json';
+
+        $router->controller('/', $controller);
+
+        $this->assertSame(['value' => 'negotiated'], $response_value);
+    }
+
+    public function testAcceptQualityChoosesPreferredRepresentation(): void
+    {
+        global $response_value, $response_code;
+
+        [$router, $controller] = $this->createNegotiatedTemplateRoute();
+
+        $_SERVER['HTTP_ACCEPT'] = 'text/html;q=0.5, application/json;q=0.9';
+        $router->controller('/', $controller);
+        $this->assertSame(['value' => 'negotiated'], $response_value);
+
+        $response_value = null;
+        $response_code = null;
+
+        $_SERVER['HTTP_ACCEPT'] = 'text/html;q=0.9, application/json;q=0.5';
+        $router->controller('/', $controller);
+        $this->assertInstanceOf(Template::class, $response_value);
+    }
+
+    private function createNegotiatedTemplateRoute(): array
+    {
+        $root = sys_get_temp_dir() . '/objectiveweb-router-negotiation-' . bin2hex(random_bytes(8));
+        $templates = $root . '/templates';
+
+        mkdir($templates, 0777, true);
+        $this->directories[] = $templates;
+        $this->directories[] = $root;
+
+        $file = $templates . '/index.php';
+        file_put_contents($file, '<?= $value ?>');
+        $this->files[] = $file;
+
+        $controller = new class {
+            public function index(array $query): array
+            {
+                return ['value' => 'negotiated'];
+            }
+        };
+
+        $_GET = [];
+        $_SERVER['SCRIPT_NAME'] = '/index.php';
+        $_SERVER['PATH_INFO'] = '/';
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REQUEST_URI'] = '/';
+        $_SERVER['REDIRECT_URL'] = '/';
+
+        return [new Router($root), $controller];
+    }
+
     public function testControllerFallsBackToHttpMethodTemplate(): void
     {
         global $response_value, $response_code;

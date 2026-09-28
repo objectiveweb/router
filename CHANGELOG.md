@@ -26,6 +26,7 @@ All notable changes to Objectiveweb Router are documented in this file.
 
 ### Changed
 
+- Response negotiation now honors `Accept` media ranges, q-values, wildcards, and q=0 exclusions; HTML/JSON responses use explicit content types and unsupported requests receive 406.
 - Pin Objectiveweb Dice to the stable `^4.0.4` series.
 - Update JMS Serializer development compatibility to `^3.32`.
 - Example JMS metadata now uses PHP attributes.
@@ -104,6 +105,8 @@ public function before(string $method, string $fn, array $params): array
 `after()` is optional. When present, it receives the controller response and may transform it. After hooks execute in reverse middleware order.
 
 ### Responses and serializers
+
+Response representation is now negotiated from the request `Accept` header. Controller array results with a matching template can be rendered as `text/html` or returned as `application/json`; missing `Accept` behaves like `*/*` and prefers HTML when a template is available. Requests that reject all available representations receive HTTP 406.
 
 All routed responses now enter the common `respond()` pipeline. Custom subclasses overriding `respond()` therefore see normal responses, registered-serializer responses, and exceptions.
 

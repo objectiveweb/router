@@ -390,10 +390,7 @@ class Router
 
             // Templates receive arrays as their data context. Other response types
             // are already complete response values and should be handled by respond().
-            if (
-                !is_array($response)
-                || (!empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'json') !== false)
-            ) {
+            if (!is_array($response)) {
                 return $response;
             }
 
@@ -408,11 +405,23 @@ class Router
             );
 
             $templates = array_unique(["$template_path$fn", "$template_path$method"]);
-
             $template = $this->template($templates, $response);
 
-            // in case no template is available, return the raw response
-            return $template ?? $response;
+            if (!$template) {
+                return $response;
+            }
+
+            // A controller array with a matching template has both HTML and
+            // JSON representations. Missing Accept behaves like */* and HTML
+            // wins ties for browser/controller routes.
+            header('Vary: Accept', false);
+
+            return static::negotiateContentType(
+                ['text/html', 'application/json'],
+                $_SERVER['HTTP_ACCEPT'] ?? null
+            ) === 'text/html'
+                ? $template
+                : $response;
         });
     }
 
@@ -654,13 +663,90 @@ class Router
         exit();
     }
 
-    public static function respond($content, $code = 200)
+    /**
+     * Choose the best representation from the server-supported content types.
+     *
+     * Missing Accept behaves like */*. More specific media ranges override
+     * wildcards, including q=0 exclusions. Ties are resolved by the order of
+     * $available so callers can express a server preference.
+     */
+    public static function negotiateContentType(array $available, ?string $accept = null): ?string
     {
+        $accept = trim((string) $accept);
+        if ($accept === '') {
+            $accept = '*/*';
+        }
 
-        header("HTTP/1.1 $code");
+        $ranges = [];
+        foreach (explode(',', $accept) as $entry) {
+            $parts = array_map('trim', explode(';', $entry));
+            $mediaRange = strtolower((string) array_shift($parts));
 
-        // Keep the default exception response stable while allowing custom
-        // exception serializers to participate in the normal response pipeline.
+            if (!str_contains($mediaRange, '/')) {
+                continue;
+            }
+
+            $quality = 1.0;
+            foreach ($parts as $parameter) {
+                if (preg_match('/^q\\s*=\\s*([0-9.]+)$/i', $parameter, $match)) {
+                    $quality = max(0.0, min(1.0, (float) $match[1]));
+                }
+            }
+
+            [$type, $subtype] = explode('/', $mediaRange, 2);
+            $ranges[] = [
+                'type' => $type,
+                'subtype' => $subtype,
+                'q' => $quality,
+            ];
+        }
+
+        $selected = null;
+        $selectedQuality = -1.0;
+
+        foreach ($available as $contentType) {
+            [$type, $subtype] = explode('/', strtolower($contentType), 2);
+
+            $bestSpecificity = -1;
+            $quality = 0.0;
+
+            foreach ($ranges as $range) {
+                if ($range['type'] !== '*' && $range['type'] !== $type) {
+                    continue;
+                }
+
+                if ($range['subtype'] !== '*' && $range['subtype'] !== $subtype) {
+                    continue;
+                }
+
+                $specificity = $range['type'] === '*'
+                    ? 0
+                    : ($range['subtype'] === '*' ? 1 : 2);
+
+                if ($specificity > $bestSpecificity) {
+                    $bestSpecificity = $specificity;
+                    $quality = $range['q'];
+                } elseif ($specificity === $bestSpecificity) {
+                    $quality = max($quality, $range['q']);
+                }
+            }
+
+            if ($bestSpecificity >= 0 && $quality > 0 && $quality > $selectedQuality) {
+                $selected = $contentType;
+                $selectedQuality = $quality;
+            }
+        }
+
+        return $selected;
+    }
+
+    /**
+     * Prepare a response body without emitting headers or terminating execution.
+     *
+     * @return array{body:string, content_type:?string, vary_accept:bool}
+     */
+    protected static function prepareResponse($content, ?string $accept = null): array
+    {
         if ($content instanceof \Exception && !self::hasSerializer(get_class($content))) {
             $content = [
                 'exception' => get_class($content),
@@ -668,36 +754,113 @@ class Router
             ];
         }
 
+        $obj = null;
         if (is_array($content) && !empty($content[0]) && is_object($content[0])) {
             $obj = $content[0];
         } elseif (is_object($content)) {
             $obj = $content;
         }
 
-        // serialize the response if necessary
-        if (!empty($obj)) {
-            if (is_callable([$obj, 'render'])) {
-                // TODO passar content_type se tiver a header accept
-                $content = call_user_func([$obj, 'render']);
-            } elseif (!empty(self::$serializers[get_class($obj)])) {
-                $content = self::$serializers[get_class($obj)]($content);
-            } elseif (class_exists('\JMS\Serializer\SerializerBuilder')) {
-                $serializer = \JMS\Serializer\SerializerBuilder::create()->build();
-                $content = $serializer->serialize($content, 'json', \JMS\Serializer\SerializationContext::create()->enableMaxDepthChecks());
-            } else {
-                $content = json_encode($content);
+        $isTemplate = $content instanceof Template;
+        $isRenderable = is_object($content) && is_callable([$content, 'render']);
+
+        if ($isTemplate) {
+            $available = ['text/html'];
+        } elseif (is_string($content) || $isRenderable) {
+            $available = ['text/html', 'application/json'];
+        } else {
+            $available = ['application/json'];
+        }
+
+        $contentType = static::negotiateContentType($available, $accept);
+        $varyAccept = count($available) > 1;
+
+        if ($contentType === null) {
+            return [
+                'body' => '',
+                'content_type' => null,
+                'vary_accept' => $varyAccept,
+            ];
+        }
+
+        if ($contentType === 'text/html') {
+            $body = $isRenderable ? call_user_func([$content, 'render']) : $content;
+
+            // A render() method may return structured data. That result is JSON,
+            // not HTML, and must itself be acceptable to the client.
+            if (!is_string($body)) {
+                if (static::negotiateContentType(['application/json'], $accept) === null) {
+                    return [
+                        'body' => '',
+                        'content_type' => null,
+                        'vary_accept' => true,
+                    ];
+                }
+
+                return [
+                    'body' => static::serializeJson($body),
+                    'content_type' => 'application/json',
+                    'vary_accept' => true,
+                ];
             }
+
+            return [
+                'body' => $body,
+                'content_type' => 'text/html',
+                'vary_accept' => $varyAccept,
+            ];
         }
 
-        if (!is_string($content)) {
-            $content = json_encode($content);
+        return [
+            'body' => static::serializeJson($content, $obj),
+            'content_type' => 'application/json',
+            'vary_accept' => $varyAccept,
+        ];
+    }
+
+    private static function serializeJson($content, ?object $obj = null): string
+    {
+        if ($obj && self::hasSerializer(get_class($obj))) {
+            $content = self::$serializers[get_class($obj)]($content);
+
+            return is_string($content)
+                ? $content
+                : json_encode($content, JSON_THROW_ON_ERROR);
         }
 
-        if (!empty($content) && is_string($content) && ($content[0] == '{' || $content[0] == '[')) {
-            header('Content-type: application/json');
+        if ($obj && class_exists('\\JMS\\Serializer\\SerializerBuilder')) {
+            $serializer = \\JMS\\Serializer\\SerializerBuilder::create()->build();
+
+            return $serializer->serialize(
+                $content,
+                'json',
+                \\JMS\\Serializer\\SerializationContext::create()->enableMaxDepthChecks()
+            );
         }
 
-        exit($content);
+        return json_encode($content, JSON_THROW_ON_ERROR);
+    }
+
+    public static function respond($content, $code = 200)
+    {
+        $response = static::prepareResponse(
+            $content,
+            $_SERVER['HTTP_ACCEPT'] ?? null
+        );
+
+        if ($response['vary_accept']) {
+            header('Vary: Accept', false);
+        }
+
+        if ($response['content_type'] === null) {
+            header('HTTP/1.1 406');
+            exit('');
+        }
+
+        header("HTTP/1.1 $code");
+        header('Content-Type: ' . $response['content_type'] . '; charset=utf-8');
+
+        exit($response['body']);
     }
 
     public static function isAjax()
