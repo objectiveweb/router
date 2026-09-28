@@ -187,7 +187,9 @@ class Router
         $args = func_get_args();
         array_splice($args, 0, 2);
 
-        $re = sprintf("([A-Z]+) %s(?:$|/)(.*)", $path);
+        $re = $path === '/'
+            ? '([A-Z]+) /(.*)'
+            : sprintf("([A-Z]+) %s(?:$|/)(.*)", rtrim($path, '/'));
         $this->route($re, function ($method, $params) use ($re, $path, $controller, $args) {
             if (func_num_args() > 2) {
                 $callback_args = func_get_args();
