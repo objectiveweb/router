@@ -22,5 +22,11 @@
     "scripts": {
         "test": "phpunit test/"
     },
-    "license": "MIT"
+    "license": "MIT",
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/objectiveweb/Dice"
+        }
+    ]
 }
