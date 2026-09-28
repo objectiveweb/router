@@ -337,11 +337,11 @@ class Router
                 $response = call_user_func([$mw, 'after'], $method, $fn, $params, $response);
             }
 
-            // if response is an object OR if the client wants json, return right away
-            // the response will be encoded by route() and respond()
+            // Templates receive arrays as their data context. Other response types
+            // are already complete response values and should be handled by respond().
             if (
-                (is_object($response) && is_callable([$response, 'render']))
-                || (!empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'json'))
+                !is_array($response)
+                || (!empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'json') !== false)
             ) {
                 return $response;
             }
