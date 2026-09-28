@@ -584,27 +584,47 @@ class Router
 
     public static function parse_post_body($decoded = true, $as_array = true)
     {
+        $contentType = strtolower(trim(explode(
+            ';',
+            $_SERVER['CONTENT_TYPE'] ?? $_SERVER['HTTP_CONTENT_TYPE'] ?? ''
+        )[0]));
 
-        switch ($_SERVER['REQUEST_METHOD']) {
-            case 'POST':
-            case 'PUT':
-            case 'PATCH':
-                if (!empty($_POST)) {
-                    return is_string($_POST) && $decoded ? json_decode($_POST, $as_array) : $_POST;
-                }
-            default:
-                $post_body = file_get_contents('php://input');
-                if (strlen($post_body) > 0 && $decoded) {
-                    if ($post_body[0] == '{' || $post_body[0] == '[') {
-                        return json_decode($post_body, $as_array);
-                    } else {
-                        parse_str($post_body, $return);
-                        return $return;
-                    }
-                } else {
-                    return $post_body;
-                }
+        // $_POST is normally an array populated by PHP for form requests.
+        // Keeping string support is useful for tests and callers that inject a raw body.
+        $postBody = is_string($_POST)
+            ? $_POST
+            : file_get_contents('php://input');
+
+        if (!$decoded) {
+            return $postBody;
         }
+
+        if ($contentType === 'application/json' || str_ends_with($contentType, '+json')) {
+            return json_decode($postBody, $as_array);
+        }
+
+        if ($contentType === 'application/x-www-form-urlencoded') {
+            if (is_array($_POST) && !empty($_POST)) {
+                return $_POST;
+            }
+
+            parse_str($postBody, $data);
+
+            return $data;
+        }
+
+        if ($contentType === 'multipart/form-data') {
+            return is_array($_POST) ? $_POST : [];
+        }
+
+        // When Content-Type is missing or unsupported, do not guess from the
+        // body contents. Return PHP-parsed form data when available, otherwise
+        // preserve the raw body.
+        if (is_array($_POST) && !empty($_POST)) {
+            return $_POST;
+        }
+
+        return $postBody;
     }
 
     /**

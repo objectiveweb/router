@@ -35,6 +35,7 @@ All notable changes to Objectiveweb Router are documented in this file.
 
 ### Fixed
 
+- Request body parsing now follows `Content-Type`: JSON (including `+json` media types), URL-encoded forms, multipart forms, and raw/unknown bodies are handled explicitly.
 - HTTP-method template fallback no longer uses an accidental variable-variable expression.
 - Controller responses that are not arrays no longer reach the array-only template renderer.
 - Overridden `respond()` methods work again through late static binding.
