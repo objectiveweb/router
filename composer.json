@@ -3,7 +3,7 @@
     "description": "Lightweight URL Router",
     "autoload": {
         "psr-4": {
-            "Objectiveweb\\\\": "src/"
+            "Objectiveweb\\": "src/"
         }
     },
     "authors": [
