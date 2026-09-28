@@ -666,7 +666,7 @@ class Router
     /**
      * Choose the best representation from the server-supported content types.
      *
-     * Missing Accept behaves like */*. More specific media ranges override
+     * Missing Accept behaves like the wildcard media range. More specific ranges override
      * wildcards, including q=0 exclusions. Ties are resolved by the order of
      * $available so callers can express a server preference.
      */
