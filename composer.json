@@ -12,7 +12,7 @@
         }
     ],
     "require": {
-        "php": ">=8.0",
+        "php": ">=8.1",
         "objectiveweb/dice": "^4.0.4"
     },
     "require-dev": {
