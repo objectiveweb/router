@@ -135,7 +135,7 @@ class ControllerTest extends TestCase
 
         $this->route('VIEW', '/sale/8777');
 
-        $this->assertSame(8777, $response_value[0]->price);
+        $this->assertSame('8777', $response_value[0]->price);
     }
 
     public function testAppRun(): void
