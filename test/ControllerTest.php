@@ -138,6 +138,29 @@ class ControllerTest extends TestCase
         $this->assertSame('8777', $response_value[0]->price);
     }
 
+    public function testControllerObjectResponseBypassesTemplateLookup(): void
+    {
+        global $response_value, $response_code;
+
+        $controller = new class {
+            public function index(): object
+            {
+                return (object) ['ok' => true];
+            }
+        };
+
+        $_SERVER['PATH_INFO'] = '/';
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REQUEST_URI'] = '/';
+        $_SERVER['REDIRECT_URL'] = '/';
+
+        $this->app->controller('/', $controller);
+
+        $this->assertIsObject($response_value);
+        $this->assertTrue($response_value->ok);
+        $this->assertSame(200, $response_code);
+    }
+
     public function testRegisteredSerializerDoesNotBypassRespond(): void
     {
         global $response_value, $response_code;
