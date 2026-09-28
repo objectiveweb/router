@@ -143,7 +143,7 @@ class Router
                     if (is_object($response) && self::hasSerializer(get_class($response))) {
                         self::$serializers[get_class($response)]($response);
                     } else {
-                        self::respond($response);
+                        static::respond($response);
                     }
                 }
             } catch (\Exception $ex) {
@@ -153,7 +153,7 @@ class Router
                     if ($ex->getCode() >= 500) {
                         error_log(get_class($ex) . ' ' . $ex->getMessage() . " @ " . $ex->getTraceAsString());
                     }
-                    self::respond(['exception' => get_class($ex), 'message' => $ex->getMessage()], $ex->getCode());
+                    static::respond(['exception' => get_class($ex), 'message' => $ex->getMessage()], $ex->getCode());
                 }
             }
         }

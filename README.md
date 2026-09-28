@@ -1,4 +1,4 @@
-# Objectiveweb URL Router ![Build Status](https://travis-ci.org/objectiveweb/router.svg?branch=master)
+# Objectiveweb URL Router [![CI](https://github.com/objectiveweb/router/actions/workflows/ci.yml/badge.svg)](https://github.com/objectiveweb/router/actions/workflows/ci.yml)
 
 Lightweight url router with dependency injection support.
 

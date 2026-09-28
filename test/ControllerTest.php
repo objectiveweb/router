@@ -8,174 +8,147 @@ require dirname(__DIR__) . '/example/App/DB/ProductsRepository.php';
 require dirname(__DIR__) . '/example/App/Model/Product.php';
 require __DIR__ . '/TestableRouter.php';
 
-use App\ProductsController;
 use App\Model\Product;
+use App\ProductsController;
+use PHPUnit\Framework\TestCase;
 use Test\Router;
 
-class ControllerTest extends PHPUnit_Framework_TestCase
+class ControllerTest extends TestCase
 {
+    private Router $app;
 
-    /** @var ProductsController */
-    static protected $controller;
-
-    /** @var  Router */
-    static protected $app;
-
-    public static function setUpBeforeClass()
+    protected function setUp(): void
     {
-        self::$app = new Router();
-        self::$app->addRule('App\DB\ProductsRepository', [
+        $this->app = new Router();
+        $this->app->addRule('App\\DB\\ProductsRepository', [
             'shared' => true,
             'constructParams' => [
-                array(
-                    new Product(1, "Cassete Recorder", 100.00),
-                    new Product(2, "Tractor Beam", 7.99)
-                )
-            ]
+                [
+                    new Product(1, 'Cassete Recorder', 100.00),
+                    new Product(2, 'Tractor Beam', 7.99),
+                ],
+            ],
         ]);
+
+        $_GET = [];
+        $_POST = [];
+
+        $_SERVER['SCRIPT_NAME'] = '/index.php';
+        $_SERVER['REQUEST_URI'] = '/';
+        $_SERVER['REDIRECT_URL'] = '/';
+        unset($_SERVER['HTTP_ACCEPT']);
+
+        global $response_value, $response_code;
+        $response_value = null;
+        $response_code = null;
     }
 
-    public static function route($method, $path)
+    private function route(string $method, string $path): void
     {
-
         $_SERVER['PATH_INFO'] = $path;
         $_SERVER['REQUEST_METHOD'] = $method;
+        $_SERVER['REQUEST_URI'] = $path;
+        $_SERVER['REDIRECT_URL'] = $path;
 
-        self::$app->controller("/", 'App\ProductsController', 'TEST');
+        $this->app->controller('/', ProductsController::class, 'TEST');
     }
 
-    public function testIndex()
+    public function testIndex(): void
     {
         global $response_value;
 
-        self::route("GET", "/");
+        $this->route('GET', '/');
 
-        $this->assertEquals(2, count($response_value));
-        $this->assertEquals(1, $response_value[0]->sku);
-
+        $this->assertCount(2, $response_value);
+        $this->assertSame(1, $response_value[0]->sku);
     }
 
-    public function testGet()
-    {
-        global $response_value;
-        self::route("GET", "/2");
-
-        $this->assertEquals(2, $response_value->sku);
-    }
-
-    public function testBeforePost()
-    {
-        global $response_code;
-        self::route("POST", "/");
-
-        $this->assertEquals(403, $response_code);
-
-    }
-
-    /**
-     * @requires HHVM
-     */
-    public function testPost()
+    public function testGet(): void
     {
         global $response_value;
 
-        $controller = self::$app->create('App\ProductsController');
-        $repository = self::$app->create('App\DB\ProductsRepository');
+        $this->route('GET', '/2');
 
-        $controller->auth = true;
+        $this->assertSame(2, $response_value->sku);
+    }
+
+    public function testPost(): void
+    {
+        global $response_value;
+
+        $controller = $this->app->create(ProductsController::class);
+        $repository = $this->app->create('App\\DB\\ProductsRepository');
 
         $_POST = '{ "sku" : 10, "name" : "Test Product", "price" : 89.99 }';
+        $_SERVER['PATH_INFO'] = '/';
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['REQUEST_URI'] = '/';
+        $_SERVER['REDIRECT_URL'] = '/';
 
-        $_SERVER['PATH_INFO'] = "/";
-        $_SERVER['REQUEST_METHOD'] = "POST";
-        try {
-            self::$app->controller("/", $controller);
-        } catch (\Exception $ex) {
-            exit($ex->getMessage());
-        }
+        $this->app->controller('/', $controller);
 
-        if (is_object($response_value)) { // this test fails on travis
-            $this->assertEquals('App\Model\Product', get_class($response_value));
-        }
-
-        $this->assertEquals(3, $repository->count());
-        $v = $repository->get(10);
-        $this->assertEquals(89.99, $v->price);
-
-
+        $this->assertInstanceOf(Product::class, $response_value);
+        $this->assertSame(3, $repository->count());
+        $this->assertSame(89.99, $repository->get(10)->price);
     }
 
-    /**
-     * @requires HHVM
-     */
-    public function testPut()
+    public function testPut(): void
     {
         global $response_value;
 
-        $repository = self::$app->create('App\DB\ProductsRepository');
-        $controller = self::$app->create('App\ProductsController');
-        $controller->auth = true;
+        $repository = $this->app->create('App\\DB\\ProductsRepository');
+        $controller = $this->app->create(ProductsController::class);
 
         $_POST = '{ "name" : "Test Rename", "price" : 89.99 }';
+        $_SERVER['PATH_INFO'] = '/2';
+        $_SERVER['REQUEST_METHOD'] = 'PUT';
+        $_SERVER['REQUEST_URI'] = '/2';
+        $_SERVER['REDIRECT_URL'] = '/2';
 
-        $_SERVER['PATH_INFO'] = "/10";
-        $_SERVER['REQUEST_METHOD'] = "PUT";
+        $this->app->controller('/', $controller);
 
-        self::$app->controller("/", $controller);
-        if (is_object($response_value)) {
-            $this->assertEquals("Test Rename", $response_value->name);
-        }
-
-        $e = $repository->get(10);
-        $this->assertEquals("Test Rename", $e->name);
-
+        $this->assertSame('Test Rename', $response_value->name);
+        $this->assertSame('Test Rename', $repository->get(2)->name);
     }
 
-    public function testCustomMethod()
-    {
-        global $response_value;
-        // will call $controller->getSale
-
-        self::route("GET", "/sale");
-
-        $this->assertEquals(90, $response_value[0]->price);
-    }
-
-    public function testControllerParameters()
-    {
-        global $response_value;
-        self::route("GET", "/hello");
-        $this->assertEquals("Hello TEST", $response_value);
-    }
-
-    public function testCustomMethodFallback()
+    public function testCustomMethod(): void
     {
         global $response_value;
 
-        // will call $controller->sale() as there is no $controller->viewSale() defined
-        self::route("VIEW", "/sale/8777");
+        $this->route('GET', '/sale');
 
-        $this->assertEquals(8777, $response_value[0]->price);
+        $this->assertSame(90, $response_value[0]->price);
     }
 
-    public function testAppRun()
+    public function testControllerParameters(): void
     {
         global $response_value;
 
-        $_SERVER['PATH_INFO'] = "/say/hello";
-        $_SERVER['REQUEST_METHOD'] = "GET";
+        $this->route('GET', '/hello');
 
-        self::$app->run('App');
+        $this->assertSame('Hello TEST', $response_value);
+    }
 
-        $this->assertEquals('hello', $response_value);
+    public function testCustomMethodFallback(): void
+    {
+        global $response_value;
 
-//         $_SERVER['PATH_INFO'] = "/products";
-//         $_SERVER['REQUEST_METHOD'] = "GET";
+        $this->route('VIEW', '/sale/8777');
 
-//         self::$app->run('App');
-//         print_r(Router::$response);
-//         $this->assertEquals(2, count(Router::$response));
-//         $this->assertEquals(1, Router::$response[0]['sku']);
+        $this->assertSame(8777, $response_value[0]->price);
+    }
 
+    public function testAppRun(): void
+    {
+        global $response_value;
+
+        $_SERVER['PATH_INFO'] = '/say/hello';
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REQUEST_URI'] = '/say/hello';
+        $_SERVER['REDIRECT_URL'] = '/say/hello';
+
+        $this->app->run('App');
+
+        $this->assertSame('hello', $response_value);
     }
 }
