@@ -292,37 +292,85 @@ class Router
                     break;
             }
 
-            // Check middlewares
-
-            // Start with default set of middlewares (applied to all requests)
-            // Note: will be overridden by class Attributes if mw class is the same
-            $middlewares = $this->config['middlewares'];
-
-            // Class Middlewares
-            foreach ($refClass->getAttributes(Middleware::class, \ReflectionAttribute::IS_INSTANCEOF) as $attr) {
-                /** @var Middleware $mw */
-                $mw = $attr->newInstance();
-                $middlewares[$mw->getClass()] = $mw->getArgs();
+            // Build middleware definitions while preserving repeated attributes.
+            // A narrower scope replaces broader middleware of the same class:
+            // defaults < class attributes < method attributes.
+            $middlewareDefinitions = [];
+            foreach ($this->config['middlewares'] as $mwClass => $mwArgs) {
+                $middlewareDefinitions[] = [
+                    'class' => $mwClass,
+                    'args' => $mwArgs,
+                ];
             }
 
-            // Method Middlewares (override class middlewares if they exist with the same class name)
-            foreach ($refMethod->getAttributes(Middleware::class, \ReflectionAttribute::IS_INSTANCEOF) as $attr) {
-                $mw = $attr->newInstance();
-                unset($middlewares[$mw->getClass()]); // ensure method middleware is inserted after class middlewares
-                $middlewares[$mw->getClass()] = $mw->getArgs();
+            $classAttributes = $refClass->getAttributes(Middleware::class, \ReflectionAttribute::IS_INSTANCEOF);
+            $classMiddlewareClasses = [];
+            foreach ($classAttributes as $attr) {
+                /** @var Middleware $definition */
+                $definition = $attr->newInstance();
+                $classMiddlewareClasses[$definition->getClass()] = true;
             }
 
-            // With the middlewares list, let's instantiate and execute each
-            foreach ($middlewares as $mw_class => $mw_args) {
-                // instantiate middleware
-                $mw = $this->create($mw_class, $mw_args, [get_class($controller) . $mw_class]);
+            if ($classMiddlewareClasses) {
+                $middlewareDefinitions = array_values(array_filter(
+                    $middlewareDefinitions,
+                    static fn (array $definition): bool => !isset($classMiddlewareClasses[$definition['class']])
+                ));
+            }
 
-                $middlewares[$mw_class] = $mw;
+            foreach ($classAttributes as $attr) {
+                $definition = $attr->newInstance();
+                $middlewareDefinitions[] = [
+                    'class' => $definition->getClass(),
+                    'args' => $definition->getArgs(),
+                ];
+            }
 
-                // execute before() middleware functions
+            $methodAttributes = $refMethod->getAttributes(Middleware::class, \ReflectionAttribute::IS_INSTANCEOF);
+            $methodMiddlewareClasses = [];
+            foreach ($methodAttributes as $attr) {
+                /** @var Middleware $definition */
+                $definition = $attr->newInstance();
+                $methodMiddlewareClasses[$definition->getClass()] = true;
+            }
+
+            if ($methodMiddlewareClasses) {
+                $middlewareDefinitions = array_values(array_filter(
+                    $middlewareDefinitions,
+                    static fn (array $definition): bool => !isset($methodMiddlewareClasses[$definition['class']])
+                ));
+            }
+
+            foreach ($methodAttributes as $attr) {
+                $definition = $attr->newInstance();
+                $middlewareDefinitions[] = [
+                    'class' => $definition->getClass(),
+                    'args' => $definition->getArgs(),
+                ];
+            }
+
+            // Instantiate and execute before() hooks in declaration order.
+            $middlewares = [];
+            foreach ($middlewareDefinitions as $definition) {
+                $mw = $this->create(
+                    $definition['class'],
+                    $definition['args'],
+                    [get_class($controller) . $definition['class']]
+                );
+
                 if (method_exists($mw, 'before')) {
-                    $params = call_user_func([$mw, 'before'], $method, $fn, $params);
+                    $updatedParams = call_user_func([$mw, 'before'], $method, $fn, $params);
+                    if (!is_array($updatedParams)) {
+                        throw new \UnexpectedValueException(sprintf(
+                            '%s::before() must return an array',
+                            get_class($mw)
+                        ), 500);
+                    }
+
+                    $params = $updatedParams;
                 }
+
+                $middlewares[] = $mw;
             }
 
             // we're testing this here in case Middlewares end the request prematurely
@@ -333,9 +381,11 @@ class Router
 
             $response = call_user_func_array([$controller, $fn], $params);
 
-            // execute after() middleware functions in reverse order
+            // Execute implemented after() hooks in reverse order.
             foreach (array_reverse($middlewares) as $mw) {
-                $response = call_user_func([$mw, 'after'], $method, $fn, $params, $response);
+                if (method_exists($mw, 'after')) {
+                    $response = call_user_func([$mw, 'after'], $method, $fn, $params, $response);
+                }
             }
 
             // Templates receive arrays as their data context. Other response types

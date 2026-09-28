@@ -8,7 +8,7 @@ Middleware is implemented as PHP classes that can be applied to controllers or s
 
 ## Middleware Class Structure
 
-All middleware classes must implement the `Objectiveweb\Router\MiddlewareInterface`:
+Middleware classes may implement `Objectiveweb\Router\MiddlewareInterface` when they provide both hooks. The router invokes `before()` and `after()` only when those methods exist:
 
 ```php
 <?php
@@ -25,7 +25,7 @@ interface MiddlewareInterface
         string $method,
         string $fn,
         array  $params
-    ): mixed;
+    ): array;
 
     public function after(
         string $method,
@@ -82,16 +82,16 @@ When a request is processed:
 2. **Method-level middleware** is executed after class middleware (if present)
 3. **For each Middleware: Before hooks** are called with the HTTP method, function name, and parameters
 4. **Controller method** is executed
-5. **For each Middleware: After hooks** are called with the HTTP method, function name, parameters, and response
+5. **For each Middleware: After hooks** that exist are called in reverse order with the HTTP method, function name, parameters, and response
 
 ## Method Signatures
 
-### `before($method, $fn, $params): mixed`
+### `before($method, $fn, $params): array`
 
 - `$method`: HTTP method (GET, POST, PUT, DELETE, etc.)
 - `$fn`: Controller method name being called
 - `$params`: Array of parameters passed to the controller method
-- Returns: Modified parameters array
+- Returns: The complete modified parameters array. Returning any other type is an error.
 
 ### `after($method, $fn, $params, $response): mixed`
 
@@ -165,3 +165,21 @@ class MyController
 3. **Response Modification**: Use `after()` to modify response data after controller execution
 4. **Error Handling**: Middleware can throw exceptions that will be handled by the router
 5. **Dependency Injection**: Middleware can receive dependencies through constructor injection
+
+
+## Repeated middleware and overriding
+
+The `Middleware` attribute is repeatable. Multiple attributes using the same middleware class at the same scope are preserved and run in declaration order:
+
+```php
+#[Middleware(HeaderMiddleware::class, 'X-One', '1')]
+#[Middleware(HeaderMiddleware::class, 'X-Two', '2')]
+public function index()
+{
+    // ...
+}
+```
+
+Middleware scopes retain the existing override behavior: method-level middleware replaces class-level and default middleware of the same class, and class-level middleware replaces default middleware of the same class. Repeated middleware within the winning scope are all executed.
+
+`before()` hooks execute in declaration order. Implemented `after()` hooks execute in reverse order, so middleware unwinds around the controller response.
