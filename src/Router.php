@@ -829,12 +829,12 @@ class Router
         }
 
         if ($obj && class_exists('\\JMS\\Serializer\\SerializerBuilder')) {
-            $serializer = \\JMS\\Serializer\\SerializerBuilder::create()->build();
+            $serializer = \JMS\Serializer\SerializerBuilder::create()->build();
 
             return $serializer->serialize(
                 $content,
                 'json',
-                \\JMS\\Serializer\\SerializationContext::create()->enableMaxDepthChecks()
+                \JMS\Serializer\SerializationContext::create()->enableMaxDepthChecks()
             );
         }
 
