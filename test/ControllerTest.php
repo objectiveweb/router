@@ -138,6 +138,59 @@ class ControllerTest extends TestCase
         $this->assertSame('8777', $response_value[0]->price);
     }
 
+    public function testRegisteredSerializerDoesNotBypassRespond(): void
+    {
+        global $response_value, $response_code;
+
+        $response = new class {
+            public string $value = 'test';
+        };
+        $serializerCalled = false;
+
+        Router::addSerializer(get_class($response), function () use (&$serializerCalled) {
+            $serializerCalled = true;
+            return ['serialized' => true];
+        });
+
+        $_SERVER['PATH_INFO'] = '/serialized';
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REQUEST_URI'] = '/serialized';
+        $_SERVER['REDIRECT_URL'] = '/serialized';
+
+        $this->app->GET('/serialized', fn () => $response);
+
+        $this->assertSame($response, $response_value);
+        $this->assertSame(200, $response_code);
+        $this->assertFalse($serializerCalled);
+    }
+
+    public function testRegisteredExceptionSerializerDoesNotBypassRespond(): void
+    {
+        global $response_value, $response_code;
+
+        $exception = new class('Teapot', 418) extends \Exception {
+        };
+        $serializerCalled = false;
+
+        Router::addSerializer(get_class($exception), function () use (&$serializerCalled) {
+            $serializerCalled = true;
+            return ['serialized' => true];
+        });
+
+        $_SERVER['PATH_INFO'] = '/exception';
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REQUEST_URI'] = '/exception';
+        $_SERVER['REDIRECT_URL'] = '/exception';
+
+        $this->app->GET('/exception', function () use ($exception) {
+            throw $exception;
+        });
+
+        $this->assertSame($exception, $response_value);
+        $this->assertSame(418, $response_code);
+        $this->assertFalse($serializerCalled);
+    }
+
     public function testAppRun(): void
     {
         global $response_value;

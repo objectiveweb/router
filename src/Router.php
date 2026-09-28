@@ -140,21 +140,14 @@ class Router
             try {
                 $response = call_user_func_array($callback, $params);
                 if ($response !== NULL) {
-                    if (is_object($response) && self::hasSerializer(get_class($response))) {
-                        self::$serializers[get_class($response)]($response);
-                    } else {
-                        static::respond($response);
-                    }
+                    static::respond($response);
                 }
             } catch (\Exception $ex) {
-                if (!empty(self::$serializers[get_class($ex)])) {
-                    self::$serializers[get_class($ex)]($ex);
-                } else {
-                    if ($ex->getCode() >= 500) {
-                        error_log(get_class($ex) . ' ' . $ex->getMessage() . " @ " . $ex->getTraceAsString());
-                    }
-                    static::respond(['exception' => get_class($ex), 'message' => $ex->getMessage()], $ex->getCode());
+                if ($ex->getCode() >= 500) {
+                    error_log(get_class($ex) . ' ' . $ex->getMessage() . " @ " . $ex->getTraceAsString());
                 }
+
+                static::respond($ex, $ex->getCode());
             }
         }
     }
@@ -589,6 +582,15 @@ class Router
     {
 
         header("HTTP/1.1 $code");
+
+        // Keep the default exception response stable while allowing custom
+        // exception serializers to participate in the normal response pipeline.
+        if ($content instanceof \Exception && !self::hasSerializer(get_class($content))) {
+            $content = [
+                'exception' => get_class($content),
+                'message' => $content->getMessage(),
+            ];
+        }
 
         if (is_array($content) && !empty($content[0]) && is_object($content[0])) {
             $obj = $content[0];
