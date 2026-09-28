@@ -6,7 +6,7 @@ require dirname(__DIR__) . '/example/App/HomeController.php';
 require dirname(__DIR__) . '/example/App/ProductsController.php';
 require dirname(__DIR__) . '/example/App/DB/ProductsRepository.php';
 require dirname(__DIR__) . '/example/App/Model/Product.php';
-require __DIR__ . '/TestableRouter.php';
+require_once __DIR__ . '/TestableRouter.php';
 
 use App\Model\Product;
 use App\ProductsController;
