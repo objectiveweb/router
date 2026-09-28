@@ -82,6 +82,7 @@ class ControllerTest extends TestCase
         $_POST = '{ "sku" : 10, "name" : "Test Product", "price" : 89.99 }';
         $_SERVER['PATH_INFO'] = '/';
         $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['CONTENT_TYPE'] = 'application/json';
         $_SERVER['REQUEST_URI'] = '/';
         $_SERVER['REDIRECT_URL'] = '/';
 
@@ -102,6 +103,7 @@ class ControllerTest extends TestCase
         $_POST = '{ "name" : "Test Rename", "price" : 89.99 }';
         $_SERVER['PATH_INFO'] = '/2';
         $_SERVER['REQUEST_METHOD'] = 'PUT';
+        $_SERVER['CONTENT_TYPE'] = 'application/json';
         $_SERVER['REQUEST_URI'] = '/2';
         $_SERVER['REDIRECT_URL'] = '/2';
 
