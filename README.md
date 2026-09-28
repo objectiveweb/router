@@ -2,13 +2,13 @@
 
 Lightweight url router with dependency injection support.
 
-## Instalation
+## Installation
 
 Add the dependency to `composer.json`, then `composer install`
 
     {
         "require": {
-            "objectiveweb/router": "~2.0"
+            "objectiveweb/router": "^3.0"
         }
     }
 
@@ -87,16 +87,6 @@ In this case, the request is mapped to the corresponding class method as follows
         
         }
         
-        // Runs before all actions
-        function before() {
-            
-        }
-        
-        // Runs before post();
-        function beforePost($body) {
-        
-        }
-        
         // POST /
         function post($body) {
         
@@ -129,6 +119,8 @@ last argument
     
 Other request methods are also valid (i.e. HEAD, OPTIONS, etc), check the example subdir for other uses.
 
+Request/response interception is handled by attribute-based middleware. See [middleware documentation](docs/middleware.md).
+
 ### Automatic routing
 
 You can bootstrap the application on a particular namespace using
@@ -143,8 +135,7 @@ for a working demo.
 
 ## Dependency Injection
 
-Since version 2.0, the Router extends [Dice](https://r.je/dice.html), which provides a dependency injection 
-container to the application. 
+Router uses [Dice](https://r.je/dice.html) internally for dependency injection and exposes `addRule()` and `create()` as its supported container API.
 
     <?php
     // include the composer autoloader
