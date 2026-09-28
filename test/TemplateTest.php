@@ -1,7 +1,7 @@
 <?php
 
 require dirname(__DIR__) . '/vendor/autoload.php';
-require __DIR__ . '/TestableRouter.php';
+require_once __DIR__ . '/TestableRouter.php';
 
 use Objectiveweb\Router as BaseRouter;
 use Objectiveweb\Router\Template;
