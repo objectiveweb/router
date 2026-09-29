@@ -1,129 +1,118 @@
-# Controller Mapping in Objectiveweb Router
+# Controller mapping
 
-The Objectiveweb Router framework uses a sophisticated controller mapping system that automatically routes HTTP requests to appropriate controller methods based on the URL structure and HTTP method.
+\`Router::controller($path, $controller, ...$constructorArgs)\` binds a URL prefix to a controller instance or class name.
 
-## How Requests are Mapped to Controllers
+\`\`\`php
+$router->controller('/products', App\ProductsController::class);
+\`\`\`
 
-### Controller Registration
+When a class name is supplied, Router constructs it through Dice. Additional arguments passed to \`controller()\` are available during controller construction.
 
-Controllers are registered using the `controller()` method in the router. This method takes two parameters:
-1. `$path` - The URL path prefix (e.g., `/vouchers`, `/venues`)
-2. `$controller` - The controller class name or instance
+## Method resolution
 
-Example from `public/index.php`:
-```php
-$app->controller('/auth', \Objectiveweb\Auth\Controller\OAuthController::class);
-$app->controller('/admin/users', \Breakfastweekend\App\Controller\Admin\UsersController::class);
-$app->controller('/vouchers', \Breakfastweekend\App\Controller\VouchersController::class);
-$app->controller('/venues', \Breakfastweekend\App\Controller\VenuesController::class);
-```
+For a controller bound to \`/products\`, Router resolves requests as follows.
 
-### Request Routing Logic
+### Base path
 
-When a request is made to a registered controller path, the router follows these steps:
+| Request | Method |
+| --- | --- |
+| \`GET /products\` | \`index()\` |
+| \`POST /products\` | \`post()\` |
+| \`PUT /products\` | \`put()\` |
+| \`PATCH /products\` | \`patch()\` |
+| \`DELETE /products\` | \`delete()\` |
 
-1. **HTTP Method Detection**: The router detects the HTTP method (GET, POST, PUT, DELETE, etc.)
+### Path parameters
 
-2. **URL Parameter Parsing**: URL path parameters are extracted from the request path
+If the first path segment does not identify a custom controller method, it remains an argument to the HTTP-method handler:
 
-3. **Method Resolution**: The router determines which controller method to call based on:
-   - The HTTP method (GET, POST, PUT, DELETE)
-   - URL parameters (if any)
-   - The controller's available methods
+| Request | Method |
+| --- | --- |
+| \`GET /products/42\` | \`get('42', ...)\` |
+| \`POST /products/42\` | \`post('42', ...)\` |
+| \`PUT /products/42\` | \`put('42', ...)\` |
+| \`DELETE /products/42\` | \`delete('42', ...)\` |
 
-### Method Resolution Rules
+Additional path segments are passed in order.
 
-The router follows these rules to determine which method to call:
+### Custom methods
 
-#### 1. Base Methods
-- **GET /path/** → calls `index()` method
-- **POST /path/** → calls `post()` method
-- **PUT /path/** → calls `put()` method
-- **DELETE /path/** → calls `delete()` method
+For a non-empty first segment, Router checks:
 
-#### 2. Parameter-Based Methods
-When URL parameters are present, the router tries to match them to controller methods:
+1. HTTP-method-prefixed method: \`getSale()\`, \`postSale()\`, etc.
+2. Unprefixed method: \`sale()\`.
+3. The normal HTTP-method handler, keeping the segment as an argument.
 
-- **GET /path/123** → calls `get(123)` method
-- **POST /path/123** → calls `post(123)` method
-- **PUT /path/123** → calls `put(123)` method
-- **DELETE /path/123** → calls `delete(123)` method
+For example:
 
-#### 3. Custom Method Resolution
-If URL parameters match controller method names, the router will call that specific method:
+| Request | Resolution order |
+| --- | --- |
+| \`GET /products/sale\` | \`getSale()\` → \`sale()\` → \`get('sale', ...)\` |
+| \`POST /products/sale\` | \`postSale()\` → \`sale()\` → \`post('sale', ...)\` |
 
-- **GET /path/some-action** → calls `someAction()` method
-- **POST /path/some-action** → calls `postSomeAction()` method
+When a custom method is selected, the segment naming that method is removed from the argument list. Hyphens in custom path method names are converted to underscores.
 
-#### 4. Special Cases
-- **GET /path/** with no parameters → calls `index()` method
-- **GET /path/123** with no matching method → calls `get(123)` method
+## Request arguments
 
-## Example Request Mappings
+After URL parameters are resolved, Router appends request data.
 
-### Vouchers Controller Examples
+### GET, DELETE, HEAD, OPTIONS, and other non-body methods
 
-Given the registration: `$app->controller('/vouchers', \Breakfastweekend\App\Controller\VouchersController::class);`
+\`$_GET\` is appended as the final controller argument.
 
-| Request | URL Path | Method Called |
-|---------|----------|---------------|
-| GET `/vouchers` | `/vouchers` | `index()` |
-| GET `/vouchers/123` | `/vouchers/123` | `get(123)` |
-| POST `/vouchers/123` | `/vouchers/123` | `post(123)` |
-| POST `/vouchers` | `/vouchers` | `post()` |
-| PUT `/vouchers/123` | `/vouchers/123` | `put(123)` |
-| DELETE `/vouchers/123` | `/vouchers/123` | `delete(123)` |
+\`\`\`php
+public function get(string $sku, array $query): Product
+{
+    // ...
+}
+\`\`\`
 
-### Custom Method Examples
+### POST, PUT, and PATCH
 
-Given a controller with methods like `activate()` and `postActivate()`:
+The request body is appended as the final argument.
 
-| Request | URL Path | Method Called |
-|---------|----------|---------------|
-| GET `/vouchers/activate` | `/vouchers/activate` | `activate()` |
-| POST `/vouchers/activate` | `/vouchers/activate` | `postActivate()` |
+An array-typed final parameter uses Router's Content-Type-aware body parser:
 
-## HTTP Method Handling
+\`\`\`php
+public function put(string $sku, array $body): Product
+{
+    // ...
+}
+\`\`\`
 
-The router automatically handles different HTTP methods and passes appropriate data:
+If the final parameter is a class and JMS Serializer is installed, Router automatically deserializes JSON into that class:
 
-### GET Requests
-- Parameters from URL path are passed as arguments
-- `$_GET` parameters are appended to method arguments
+\`\`\`php
+public function post(Product $product): Product
+{
+    // ...
+}
+\`\`\`
 
-### POST/PUT/PATCH Requests
-- Parameters from URL path are passed as arguments
-- Request body is parsed and passed as the last argument
-- For type-hinted methods, the body is automatically deserialized using JMS Serializer
+Class-typed automatic deserialization accepts \`application/json\` and \`application/*+json\`. Unsupported or missing media types return 415, and malformed JSON returns 400.
 
-### DELETE Requests
-- Parameters from URL path are passed as arguments
-- `$_GET` parameters are appended to method arguments
+A controller may implement \`_deserialize(string $body)\` for non-class, non-array body handling.
 
-## Middleware Support
+## Middleware
 
-Controllers can define middleware using attributes:
-- Class-level middleware applies to all methods
-- Method-level middleware overrides class middleware
+Controller interception uses \`#[Objectiveweb\Router\Middleware]\` attributes. Legacy controller methods such as \`before()\` and \`beforePost()\` are not invoked in v3.
 
-Middleware classes are instantiated using the dependency injection container (`$this->create`) instead of manual instantiation, ensuring that dependencies are properly injected into middleware classes, similar to how controllers are instantiated.
+See [middleware documentation](../docs/middleware.md).
 
-## Template Rendering
+## Templates
 
-If a template exists for the method being called, the router will automatically render it:
-- Templates are located in `templates/` directory
-- The path structure follows the controller registration pattern
+If a controller returns an array, Router looks for a PHP template using the controller path and selected method.
 
-## Error Handling
+The default template root is:
 
-If no matching method is found:
-- Returns 404 error with "Route not found" message
-- If CORS is enabled, OPTIONS requests are handled appropriately
+\`\`\`text
+<composer project root>/templates
+\`\`\`
 
-## Authentication Integration
+Router tries the selected controller method template first and the HTTP-method template second. If no template exists, the array continues as a JSON-capable response.
 
-Controllers can use `#[RequireRole]` attributes to control access:
-- Role-based access control is enforced before method execution
-- Authentication is handled automatically through the framework
+When both a template and JSON representation are available, \`Accept\` negotiation chooses between \`text/html\` and \`application/json\`.
 
-This controller mapping system provides a clean, predictable way to route requests to appropriate controller methods while maintaining flexibility for complex routing scenarios.
+## Errors
+
+If no controller method matches, Router raises a 404 response. Exceptions and PHP Errors raised while resolving or executing controllers and middleware are handled by the route Throwable boundary.

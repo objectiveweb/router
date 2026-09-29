@@ -1,185 +1,152 @@
-# Middleware System in Objectiveweb Router
+# Middleware
 
-The Objectiveweb Router framework provides a flexible middleware system that allows you to intercept and modify HTTP requests and responses before and after controller method execution.
+Objectiveweb Router uses middleware attributes to intercept controller execution.
 
-## Overview
+Middleware may implement \`Objectiveweb\Router\MiddlewareInterface\` when it provides both hooks. The router invokes a hook only when that method exists, so a middleware class may also implement only \`before()\` or only \`after()\`.
 
-Middleware is implemented as PHP classes that can be applied to controllers or specific controller methods using attributes. The middleware system provides hooks for pre-processing requests (`before` method) and post-processing responses (`after` method).
+## Interface
 
-## Middleware Class Structure
-
-Middleware classes may implement `Objectiveweb\Router\MiddlewareInterface` when they provide both hooks. The router invokes `before()` and `after()` only when those methods exist:
-
-```php
+\`\`\`php
 <?php
 
 namespace Objectiveweb\Router;
 
 interface MiddlewareInterface
 {
-    /**
-     * Runs before controller execution.
-     * Must return updated params or throw.
-     */
     public function before(
         string $method,
         string $fn,
-        array  $params
+        array $params
     ): array;
 
     public function after(
         string $method,
         string $fn,
-        array  $params,
-        array|null  $response): mixed;
+        array $params,
+        mixed $response
+    ): mixed;
 }
-```
+\`\`\`
 
-## Applying Middleware
+\`before()\` must return the complete argument list that will be passed to the controller. Returning anything other than an array is a 500 error.
 
-Middleware can be applied at two levels:
+\`after()\` receives the controller response and may return a transformed response.
 
-### Class-Level Middleware
+## Applying middleware
 
-Applied to all methods in a controller:
+Class-level middleware applies to every routed method:
 
-```php
-<?php
-
+\`\`\`php
 use Objectiveweb\Router\Middleware;
 
-#[Middleware(MyMiddleware::class, 'arg1', 'arg2')]
-class MyController 
+#[Middleware(AuthenticationMiddleware::class)]
+class ProductsController
 {
-    // This middleware will be applied to all methods in this controller
+    // ...
 }
-```
+\`\`\`
 
-### Method-Level Middleware
+Method-level middleware applies only to one controller method:
 
-Applied to specific methods only:
-
-```php
-<?php
-
+\`\`\`php
 use Objectiveweb\Router\Middleware;
 
-class MyController 
+class ProductsController
 {
-    #[Middleware(MyMiddleware::class, 'arg1', 'arg2')]
-    public function index() 
+    #[Middleware(AuditMiddleware::class, 'products.read')]
+    public function index(array $query): array
     {
-        // This middleware will only be applied to the index method
+        return [];
     }
 }
-```
+\`\`\`
 
-## Middleware Execution Flow
+Arguments after the middleware class name are passed to the middleware constructor through Dice.
 
-When a request is processed:
+## Execution order
 
-1. **Class-level middleware** is executed first (in the order they are defined)
-2. **Method-level middleware** is executed after class middleware (if present)
-3. **For each Middleware: Before hooks** are called with the HTTP method, function name, and parameters
-4. **Controller method** is executed
-5. **For each Middleware: After hooks** that exist are called in reverse order with the HTTP method, function name, parameters, and response
+Middleware definitions are combined in this precedence order:
 
-## Method Signatures
+1. Router defaults configured through \`middlewares\`.
+2. Controller class attributes.
+3. Controller method attributes.
 
-### `before($method, $fn, $params): array`
+A narrower scope replaces broader middleware of the same class. Repeated middleware using the same class at the winning scope is preserved in declaration order.
 
-- `$method`: HTTP method (GET, POST, PUT, DELETE, etc.)
-- `$fn`: Controller method name being called
-- `$params`: Array of parameters passed to the controller method
-- Returns: The complete modified parameters array. Returning any other type is an error.
+For the final middleware list:
 
-### `after($method, $fn, $params, $response): mixed`
+1. \`before()\` hooks run in declaration order.
+2. The controller method runs.
+3. \`after()\` hooks run in reverse order.
 
-- `$method`: HTTP method (GET, POST, PUT, DELETE, etc.)
-- `$fn`: Controller method name being called
-- `$params`: Array of parameters passed to the controller method
-- `$response`: The response returned by the controller method
-- Returns: Modified response
+This gives normal middleware unwinding around the controller response.
 
-## Example Implementation
+## Example
 
-Here's a complete example of a middleware implementation:
-
-```php
+\`\`\`php
 <?php
 
-namespace Breakfastweekend\App\Middleware;
-
+use Objectiveweb\Router\Middleware;
 use Objectiveweb\Router\MiddlewareInterface;
 
 class LoggingMiddleware implements MiddlewareInterface
 {
-    public function before($method, $fn, $params): mixed
+    public function __construct(private string $channel = 'http')
     {
-        // Log request details
-        error_log("Request: $method $fn with params: " . json_encode($params));
-        
-        // Return modified parameters if needed
+    }
+
+    public function before(
+        string $method,
+        string $fn,
+        array $params
+    ): array {
+        error_log("[$this->channel] $method $fn");
+
         return $params;
     }
 
-    public function after($method, $fn, $params, $response): mixed
-    {
-        // Log response details
-        error_log("Response: $method $fn with response: " . json_encode($response));
-        
-        // Return modified response if needed
+    public function after(
+        string $method,
+        string $fn,
+        array $params,
+        mixed $response
+    ): mixed {
+        error_log("[$this->channel] completed $method $fn");
+
         return $response;
     }
 }
-```
 
-## Usage in Controllers
-
-```php
-<?php
-
-use Breakfastweekend\App\Middleware\LoggingMiddleware;
-use Objectiveweb\Router\Middleware;
-
-class MyController 
+#[Middleware(LoggingMiddleware::class, 'products')]
+class ProductsController
 {
-    #[Middleware(LoggingMiddleware::class)]
-    public function index()
+    #[Middleware(LoggingMiddleware::class, 'products.index')]
+    public function index(array $query): array
     {
-        return ['message' => 'Hello World'];
-    }
-    
-    #[Middleware(LoggingMiddleware::class)]
-    public function get($id)
-    {
-        return ['id' => $id, 'data' => 'Some data'];
+        return ['ok' => true];
     }
 }
-```
+\`\`\`
 
-## Best Practices
+In this example, the method-level \`LoggingMiddleware\` replaces the class-level instance because both use the same middleware class.
 
-1. **Middleware Order**: Class-level middleware executes before method-level middleware
-2. **Parameter Modification**: Use `before()` to modify request parameters before controller execution
-3. **Response Modification**: Use `after()` to modify response data after controller execution
-4. **Error Handling**: Middleware can throw exceptions that will be handled by the router
-5. **Dependency Injection**: Middleware can receive dependencies through constructor injection
+## Default middleware
 
+Middleware can also be configured when the router is created:
 
-## Repeated middleware and overriding
+\`\`\`php
+$router = new \Objectiveweb\Router(null, [
+    'middlewares' => [
+        AuthenticationMiddleware::class => [],
+        LoggingMiddleware::class => ['http'],
+    ],
+]);
+\`\`\`
 
-The `Middleware` attribute is repeatable. Multiple attributes using the same middleware class at the same scope are preserved and run in declaration order:
+Class- or method-level attributes for the same middleware class replace that default definition.
 
-```php
-#[Middleware(HeaderMiddleware::class, 'X-One', '1')]
-#[Middleware(HeaderMiddleware::class, 'X-Two', '2')]
-public function index()
-{
-    // ...
-}
-```
+## Errors and dependency injection
 
-Middleware scopes retain the existing override behavior: method-level middleware replaces class-level and default middleware of the same class, and class-level middleware replaces default middleware of the same class. Repeated middleware within the winning scope are all executed.
+Middleware is constructed through the same Dice container used for controllers, so constructor dependencies can be injected normally.
 
-`before()` hooks execute in declaration order. Implemented `after()` hooks execute in reverse order, so middleware unwinds around the controller response.
+Exceptions and PHP Errors raised by middleware remain inside the route Throwable boundary and are converted to controlled HTTP responses.
