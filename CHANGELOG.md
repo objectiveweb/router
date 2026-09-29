@@ -36,6 +36,7 @@ All notable changes to Objectiveweb Router are documented in this file.
 
 ### Fixed
 
+- Route execution now catches all PHP `Throwable` failures, including `TypeError`/`Error`, normalizes invalid exception codes to HTTP 500, and includes dependency-injection/callback resolution inside the HTTP error boundary.
 - Request body parsing now follows `Content-Type`: JSON (including `+json` media types), URL-encoded forms, multipart forms, and raw/unknown bodies are handled explicitly.
 - HTTP-method template fallback no longer uses an accidental variable-variable expression.
 - Controller responses that are not arrays no longer reach the array-only template renderer.

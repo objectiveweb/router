@@ -124,36 +124,48 @@ class Router
 
             array_shift($params);
 
-            // route expects a callable
-            // this can be:
-            //  - a function()
-            //  - [ $instance, 'method' ]
-            //  - [ 'Classname', 'method' ]
-
-            // For the third case, we need to instantiate the class
-            if (is_array($callback) && is_string($callback[0])) {
-                $callback[0] = $this->create($callback[0], $params);
-            }
-
-            if (!is_callable($callback)) {
-                throw new \Exception(sprintf(_('%s: Invalid callback'), $callback), 500);
-            }
-
-            if (func_num_args() > 2) {
-                $params = array_merge($params, array_slice(func_get_args(), 2));
-            }
-
+            // Route execution is the HTTP error boundary. Callback resolution,
+            // dependency injection, invocation and response preparation can all
+            // raise PHP 8 Errors as well as Exceptions, so catch Throwable.
             try {
+                // route expects a callable
+                // this can be:
+                //  - a function()
+                //  - [ $instance, 'method' ]
+                //  - [ 'Classname', 'method' ]
+
+                // For the third case, instantiate the class through Dice.
+                if (is_array($callback) && is_string($callback[0])) {
+                    $callback[0] = $this->create($callback[0], $params);
+                }
+
+                if (!is_callable($callback)) {
+                    $callbackType = is_string($callback) ? $callback : get_debug_type($callback);
+                    throw new \RuntimeException(
+                        sprintf(_('%s: Invalid callback'), $callbackType),
+                        500
+                    );
+                }
+
+                if (func_num_args() > 2) {
+                    $params = array_merge($params, array_slice(func_get_args(), 2));
+                }
+
                 $response = call_user_func_array($callback, $params);
                 if ($response !== NULL) {
                     static::respond($response);
                 }
-            } catch (\Exception $ex) {
-                if ($ex->getCode() >= 500) {
+            } catch (\Throwable $ex) {
+                $status = (int) $ex->getCode();
+                if ($status < 400 || $status > 599) {
+                    $status = 500;
+                }
+
+                if ($status >= 500) {
                     error_log(get_class($ex) . ' ' . $ex->getMessage() . " @ " . $ex->getTraceAsString());
                 }
 
-                static::respond($ex, $ex->getCode());
+                static::respond($ex, $status);
             }
         }
     }
@@ -747,7 +759,7 @@ class Router
      */
     protected static function prepareResponse($content, ?string $accept = null): array
     {
-        if ($content instanceof \Exception && !self::hasSerializer(get_class($content))) {
+        if ($content instanceof \Throwable && !self::hasSerializer(get_class($content))) {
             $content = [
                 'exception' => get_class($content),
                 'message' => $content->getMessage(),
