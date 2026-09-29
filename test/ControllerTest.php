@@ -53,6 +53,15 @@ class ControllerTest extends TestCase
         $this->app->controller('/', ProductsController::class, 'TEST');
     }
 
+    public function testCreateExposesOnlySupportedDiceArguments(): void
+    {
+        $method = new \ReflectionMethod(Router::class, 'create');
+
+        $this->assertSame(2, $method->getNumberOfParameters());
+        $this->assertSame(1, $method->getNumberOfRequiredParameters());
+        $this->assertSame('object', (string) $method->getReturnType());
+    }
+
     public function testIndex(): void
     {
         global $response_value;

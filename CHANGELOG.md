@@ -6,6 +6,7 @@ All notable changes to Objectiveweb Router are documented in this file.
 
 ### Breaking changes
 
+- `create()` no longer exposes Dice's internal third `share` argument; the supported Router DI API is `create(string $name, array $args = []): object`.
 - Require PHP 8.1 or newer.
 - Router now composes Dice instead of extending it. Dependency injection remains available through `addRule()` and `create()`, but inherited Dice methods are no longer part of the Router API.
 - Replace controller `before()` / `beforePost()` style hooks with attribute-based middleware.
@@ -83,6 +84,8 @@ $service = $router->create(Service::class);
 ```
 
 Code that called other inherited Dice methods on the Router should create/configure dependencies through the supported Router API instead.
+
+The Router-level `create()` method accepts only the class name and explicit constructor arguments. Dice's internal object-graph `share` argument is intentionally not part of the Router API.
 
 ### Controller hooks and middleware
 

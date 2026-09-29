@@ -58,9 +58,9 @@ class Router
         $this->dice = $this->dice->addRule($name, $rule);
     }
 
-    public function create(string $name, array $args = [], array $share = [])
+    public function create(string $name, array $args = []): object
     {
-        return $this->dice->create($name, $args, $share);
+        return $this->dice->create($name, $args);
     }
 
     /**
