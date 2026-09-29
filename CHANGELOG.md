@@ -38,6 +38,7 @@ All notable changes to Objectiveweb Router are documented in this file.
 
 ### Fixed
 
+- Middleware instantiation no longer passes a synthetic string through Dice's internal `share` argument; repeated middleware remain distinct while normally configured shared dependencies are still reused.
 - Public README, controller/middleware documentation, and runnable examples now describe the v3 API and no longer reference legacy Dice includes or removed controller hooks.
 - `GET()`, `POST()`, `PUT()`, and `DELETE()` now share the same callback resolution and Throwable boundary as `route()`, including Dice-backed class callbacks and request argument preparation.
 - Example controller dependencies are explicitly declared properties, removing the PHP 8.2+ dynamic-property deprecation.

@@ -415,8 +415,7 @@ class Router
             foreach ($middlewareDefinitions as $definition) {
                 $mw = $this->create(
                     $definition['class'],
-                    $definition['args'],
-                    [get_class($controller) . $definition['class']]
+                    $definition['args']
                 );
 
                 if (method_exists($mw, 'before')) {

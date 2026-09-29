@@ -30,6 +30,47 @@ class RecordingMiddleware
     }
 }
 
+class SharedMiddlewareDependency
+{
+}
+
+class DependencyAwareMiddleware
+{
+    public static array $middlewareIds = [];
+    public static array $dependencyIds = [];
+
+    public function __construct(
+        public SharedMiddlewareDependency $dependency,
+        private string $name
+    ) {
+    }
+
+    public function before(string $method, string $fn, array $params): array
+    {
+        self::$middlewareIds[] = spl_object_id($this);
+        self::$dependencyIds[] = spl_object_id($this->dependency);
+
+        return $params;
+    }
+}
+
+#[Middleware(DependencyAwareMiddleware::class, 'first')]
+#[Middleware(DependencyAwareMiddleware::class, 'second')]
+class DependencyAwareMiddlewareController
+{
+    public static ?int $dependencyId = null;
+
+    public function __construct(SharedMiddlewareDependency $dependency)
+    {
+        self::$dependencyId = spl_object_id($dependency);
+    }
+
+    public function index(array $query): string
+    {
+        return 'ok';
+    }
+}
+
 class BeforeOnlyMiddleware
 {
     public static int $calls = 0;
@@ -102,6 +143,9 @@ class MiddlewareTest extends TestCase
         $this->router = new Router();
 
         RecordingMiddleware::$events = [];
+        DependencyAwareMiddleware::$middlewareIds = [];
+        DependencyAwareMiddleware::$dependencyIds = [];
+        DependencyAwareMiddlewareController::$dependencyId = null;
         BeforeOnlyMiddleware::$calls = 0;
 
         $_GET = [];
@@ -148,6 +192,34 @@ class MiddlewareTest extends TestCase
             'after:method-second',
             'after:method-first',
         ], RecordingMiddleware::$events);
+    }
+
+    public function testRepeatedMiddlewareInstancesAreDistinctAndShareNormalDependencies(): void
+    {
+        global $response_value;
+
+        $this->router->addRule(SharedMiddlewareDependency::class, [
+            'shared' => true,
+        ]);
+
+        $this->router->controller('/', DependencyAwareMiddlewareController::class);
+
+        $this->assertSame('ok', $response_value);
+        $this->assertCount(2, DependencyAwareMiddleware::$middlewareIds);
+        $this->assertNotSame(
+            DependencyAwareMiddleware::$middlewareIds[0],
+            DependencyAwareMiddleware::$middlewareIds[1]
+        );
+
+        $this->assertCount(2, DependencyAwareMiddleware::$dependencyIds);
+        $this->assertSame(
+            DependencyAwareMiddleware::$dependencyIds[0],
+            DependencyAwareMiddleware::$dependencyIds[1]
+        );
+        $this->assertSame(
+            DependencyAwareMiddlewareController::$dependencyId,
+            DependencyAwareMiddleware::$dependencyIds[0]
+        );
     }
 
     public function testMiddlewareWithoutAfterHookDoesNotCrash(): void
