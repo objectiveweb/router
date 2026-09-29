@@ -65,6 +65,73 @@ class ResponseNegotiationTest extends TestCase
         $this->assertSame('<strong>Hello</strong>', $response['body']);
     }
 
+    public function testThrowablePreserves404ForHtmlClient(): void
+    {
+        $response = Router::prepareHttpResponseForTest(
+            new \RuntimeException('Missing', 404),
+            404,
+            'text/html'
+        );
+
+        $this->assertSame(404, $response['status']);
+        $this->assertSame('text/html', $response['content_type']);
+        $this->assertStringContainsString('RuntimeException', $response['body']);
+        $this->assertStringContainsString('Missing', $response['body']);
+        $this->assertTrue($response['vary_accept']);
+    }
+
+    public function testThrowablePreserves500ForHtmlClient(): void
+    {
+        $response = Router::prepareHttpResponseForTest(
+            new \TypeError('Bad argument'),
+            500,
+            'text/html'
+        );
+
+        $this->assertSame(500, $response['status']);
+        $this->assertSame('text/html', $response['content_type']);
+    }
+
+    public function testThrowablePreservesStatusForJsonClient(): void
+    {
+        $response = Router::prepareHttpResponseForTest(
+            new \RuntimeException('Missing', 404),
+            404,
+            'application/json'
+        );
+
+        $this->assertSame(404, $response['status']);
+        $this->assertSame('application/json', $response['content_type']);
+
+        $body = json_decode($response['body'], true, flags: JSON_THROW_ON_ERROR);
+        $this->assertSame(\RuntimeException::class, $body['exception']);
+        $this->assertSame('Missing', $body['message']);
+    }
+
+    public function testThrowableHtmlEscapesMessage(): void
+    {
+        $response = Router::prepareHttpResponseForTest(
+            new \RuntimeException('<script>alert(1)</script>', 500),
+            500,
+            'text/html'
+        );
+
+        $this->assertStringNotContainsString('<script>', $response['body']);
+        $this->assertStringContainsString('&lt;script&gt;', $response['body']);
+    }
+
+    public function testThrowableStillReturns406ForUnsupportedRepresentation(): void
+    {
+        $response = Router::prepareHttpResponseForTest(
+            new \RuntimeException('Missing', 404),
+            404,
+            'image/png'
+        );
+
+        $this->assertSame(406, $response['status']);
+        $this->assertNull($response['content_type']);
+    }
+
     public function testStructuredResponseRejectsHtmlOnlyRequest(): void
     {
         $response = Router::prepareResponseForTest(['ok' => true], 'text/html');

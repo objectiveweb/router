@@ -36,6 +36,7 @@ All notable changes to Objectiveweb Router are documented in this file.
 
 ### Fixed
 
+- Default Throwable responses now negotiate HTML or JSON without replacing the original 4xx/5xx status with 406 for HTML clients.
 - Route execution now catches all PHP `Throwable` failures, including `TypeError`/`Error`, normalizes invalid exception codes to HTTP 500, and includes dependency-injection/callback resolution inside the HTTP error boundary.
 - Request body parsing now follows `Content-Type`: JSON (including `+json` media types), URL-encoded forms, multipart forms, and raw/unknown bodies are handled explicitly.
 - Class-typed controller request bodies now require a JSON media type, return 415 for unsupported/missing `Content-Type`, and return 400 for malformed JSON instead of surfacing as a server error.
@@ -109,6 +110,8 @@ public function before(string $method, string $fn, array $params): array
 ### Responses and serializers
 
 Response representation is now negotiated from the request `Accept` header. Controller array results with a matching template can be rendered as `text/html` or returned as `application/json`; missing `Accept` behaves like `*/*` and prefers HTML when a template is available. Requests that reject all available representations receive HTTP 406.
+
+Default error responses support both HTML and JSON representations, so an existing 4xx/5xx status is preserved for clients accepting either representation. A request that accepts neither can still receive HTTP 406.
 
 All routed responses now enter the common `respond()` pipeline. Custom subclasses overriding `respond()` therefore see normal responses, registered-serializer responses, and exceptions.
 

@@ -801,9 +801,49 @@ class Router
     protected static function prepareResponse($content, ?string $accept = null): array
     {
         if ($content instanceof \Throwable && !self::hasSerializer(get_class($content))) {
-            $content = [
-                'exception' => get_class($content),
-                'message' => $content->getMessage(),
+            $contentType = static::negotiateContentType(
+                ['text/html', 'application/json'],
+                $accept
+            );
+
+            if ($contentType === null) {
+                return [
+                    'body' => '',
+                    'content_type' => null,
+                    'vary_accept' => true,
+                ];
+            }
+
+            if ($contentType === 'text/html') {
+                $exception = htmlspecialchars(
+                    get_class($content),
+                    ENT_QUOTES | ENT_SUBSTITUTE,
+                    'UTF-8'
+                );
+                $message = htmlspecialchars(
+                    $content->getMessage(),
+                    ENT_QUOTES | ENT_SUBSTITUTE,
+                    'UTF-8'
+                );
+
+                return [
+                    'body' => sprintf(
+                        '<!doctype html><html><body><h1>%s</h1><p>%s</p></body></html>',
+                        $exception,
+                        $message
+                    ),
+                    'content_type' => 'text/html',
+                    'vary_accept' => true,
+                ];
+            }
+
+            return [
+                'body' => static::serializeJson([
+                    'exception' => get_class($content),
+                    'message' => $content->getMessage(),
+                ]),
+                'content_type' => 'application/json',
+                'vary_accept' => true,
             ];
         }
 
@@ -894,10 +934,30 @@ class Router
         return json_encode($content, JSON_THROW_ON_ERROR);
     }
 
+    /**
+     * Prepare the final HTTP response plan, including the status selected after
+     * representation negotiation.
+     *
+     * @return array{status:int, body:string, content_type:?string, vary_accept:bool}
+     */
+    protected static function prepareHttpResponse(
+        $content,
+        int $code = 200,
+        ?string $accept = null
+    ): array {
+        $response = static::prepareResponse($content, $accept);
+
+        return [
+            'status' => $response['content_type'] === null ? 406 : $code,
+            ...$response,
+        ];
+    }
+
     public static function respond($content, $code = 200)
     {
-        $response = static::prepareResponse(
+        $response = static::prepareHttpResponse(
             $content,
+            $code,
             $_SERVER['HTTP_ACCEPT'] ?? null
         );
 
@@ -905,12 +965,12 @@ class Router
             header('Vary: Accept', false);
         }
 
+        header("HTTP/1.1 {$response['status']}");
+
         if ($response['content_type'] === null) {
-            header('HTTP/1.1 406');
             exit('');
         }
 
-        header("HTTP/1.1 $code");
         header('Content-Type: ' . $response['content_type'] . '; charset=utf-8');
 
         exit($response['body']);
