@@ -2,8 +2,6 @@ name: Release verification
 
 on:
   push:
-    branches:
-      - devel
     tags:
       - 'v*'
   workflow_dispatch:

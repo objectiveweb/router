@@ -26,6 +26,7 @@ All notable changes to Objectiveweb Router are documented in this file.
 
 ### Changed
 
+- GitHub Actions workflows now use `actions/checkout@v7`, removing the deprecated Node 20 action runtime warning.
 - Test execution now fails on PHP/PHPUnit deprecations so the supported PHP matrix remains deprecation-clean.
 - Response negotiation now honors `Accept` media ranges, q-values, wildcards, and q=0 exclusions; HTML/JSON responses use explicit content types and unsupported requests receive 406.
 - Require Objectiveweb Dice `^4.1.0`.
