@@ -27,7 +27,7 @@ All notable changes to Objectiveweb Router are documented in this file.
 ### Changed
 
 - Response negotiation now honors `Accept` media ranges, q-values, wildcards, and q=0 exclusions; HTML/JSON responses use explicit content types and unsupported requests receive 406.
-- Pin Objectiveweb Dice to the stable `^4.0.4` series.
+- Require Objectiveweb Dice `^4.1.0`.
 - Update JMS Serializer development compatibility to `^3.32`.
 - Example JMS metadata now uses PHP attributes.
 - Non-string response bodies are JSON-encoded before output.

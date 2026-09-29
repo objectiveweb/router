@@ -13,7 +13,7 @@
     ],
     "require": {
         "php": ">=8.1",
-        "objectiveweb/dice": "^4.0.4"
+        "objectiveweb/dice": "^4.1.0"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5 || ^11.5 || ^12.5",
@@ -22,11 +22,5 @@
     "scripts": {
         "test": "phpunit test/"
     },
-    "license": "MIT",
-    "repositories": [
-        {
-            "type": "vcs",
-            "url": "https://github.com/objectiveweb/Dice"
-        }
-    ]
+    "license": "MIT"
 }
