@@ -31,6 +31,21 @@ class RequestBodyTest extends TestCase
         $this->assertNull(Router::parse_post_body());
     }
 
+    public function testMalformedJsonThrows400(): void
+    {
+        $_SERVER['CONTENT_TYPE'] = 'application/json';
+        $_POST = '{"ok":';
+
+        try {
+            Router::parse_post_body();
+            $this->fail('Expected malformed JSON to throw');
+        } catch (\RuntimeException $ex) {
+            $this->assertSame(400, $ex->getCode());
+            $this->assertSame('Invalid JSON request body', $ex->getMessage());
+            $this->assertInstanceOf(\JsonException::class, $ex->getPrevious());
+        }
+    }
+
     public function testStructuredJsonMediaTypeIsDecoded(): void
     {
         $_SERVER['CONTENT_TYPE'] = 'application/problem+json';

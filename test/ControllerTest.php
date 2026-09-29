@@ -36,7 +36,7 @@ class ControllerTest extends TestCase
         $_SERVER['SCRIPT_NAME'] = '/index.php';
         $_SERVER['REQUEST_URI'] = '/';
         $_SERVER['REDIRECT_URL'] = '/';
-        unset($_SERVER['HTTP_ACCEPT']);
+        unset($_SERVER['HTTP_ACCEPT'], $_SERVER['CONTENT_TYPE'], $_SERVER['HTTP_CONTENT_TYPE']);
 
         global $response_value, $response_code;
         $response_value = null;
@@ -91,6 +91,86 @@ class ControllerTest extends TestCase
         $this->assertInstanceOf(Product::class, $response_value);
         $this->assertSame(3, $repository->count());
         $this->assertSame(89.99, $repository->get(10)->price);
+    }
+
+    public function testClassTypedBodyRejectsUnsupportedContentType(): void
+    {
+        global $response_value, $response_code;
+
+        $controller = $this->app->create(ProductsController::class);
+        $repository = $this->app->create('App\DB\ProductsRepository');
+
+        $_POST = 'sku=10&name=Test+Product&price=89.99';
+        $_SERVER['PATH_INFO'] = '/';
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['CONTENT_TYPE'] = 'application/x-www-form-urlencoded';
+        $_SERVER['REQUEST_URI'] = '/';
+        $_SERVER['REDIRECT_URL'] = '/';
+
+        $this->app->controller('/', $controller);
+
+        $this->assertInstanceOf(\RuntimeException::class, $response_value);
+        $this->assertSame(415, $response_code);
+        $this->assertSame(2, $repository->count());
+    }
+
+    public function testClassTypedBodyRejectsMissingContentType(): void
+    {
+        global $response_value, $response_code;
+
+        $controller = $this->app->create(ProductsController::class);
+
+        $_POST = '{"sku":10,"name":"Test Product","price":89.99}';
+        $_SERVER['PATH_INFO'] = '/';
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['REQUEST_URI'] = '/';
+        $_SERVER['REDIRECT_URL'] = '/';
+
+        $this->app->controller('/', $controller);
+
+        $this->assertInstanceOf(\RuntimeException::class, $response_value);
+        $this->assertSame(415, $response_code);
+    }
+
+    public function testClassTypedBodyRejectsMalformedJson(): void
+    {
+        global $response_value, $response_code;
+
+        $controller = $this->app->create(ProductsController::class);
+        $repository = $this->app->create('App\DB\ProductsRepository');
+
+        $_POST = '{"sku":10,"name":"broken"';
+        $_SERVER['PATH_INFO'] = '/';
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['CONTENT_TYPE'] = 'application/json';
+        $_SERVER['REQUEST_URI'] = '/';
+        $_SERVER['REDIRECT_URL'] = '/';
+
+        $this->app->controller('/', $controller);
+
+        $this->assertInstanceOf(\RuntimeException::class, $response_value);
+        $this->assertSame('Invalid JSON request body', $response_value->getMessage());
+        $this->assertSame(400, $response_code);
+        $this->assertSame(2, $repository->count());
+    }
+
+    public function testClassTypedBodyAcceptsStructuredJsonMediaType(): void
+    {
+        global $response_value;
+
+        $controller = $this->app->create(ProductsController::class);
+
+        $_POST = '{"sku":10,"name":"Test Product","price":89.99}';
+        $_SERVER['PATH_INFO'] = '/';
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['CONTENT_TYPE'] = 'application/vnd.objectiveweb+json';
+        $_SERVER['REQUEST_URI'] = '/';
+        $_SERVER['REDIRECT_URL'] = '/';
+
+        $this->app->controller('/', $controller);
+
+        $this->assertInstanceOf(Product::class, $response_value);
+        $this->assertSame(10, $response_value->sku);
     }
 
     public function testPut(): void

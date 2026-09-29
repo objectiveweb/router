@@ -281,14 +281,35 @@ class Router
                 case "patch":
                     $rparams = $refMethod->getParameters();
                     $fn_param = array_pop($rparams);
-                    // auto deserialize when type hinted as class and jms/serializer is available
-                    if ($fn_param && $fn_param->getClass() && class_exists('\JMS\Serializer\SerializerBuilder')) {
+                    $fnType = $fn_param?->getType();
+                    $fnClass = $fnType instanceof \ReflectionNamedType && !$fnType->isBuiltin()
+                        ? $fnType->getName()
+                        : null;
+                    $fnIsArray = $fnType instanceof \ReflectionNamedType
+                        && $fnType->isBuiltin()
+                        && $fnType->getName() === 'array';
+
+                    // Auto-deserialize class-typed bodies only when the request
+                    // explicitly declares a JSON media type.
+                    if ($fnClass && class_exists('\JMS\Serializer\SerializerBuilder')) {
+                        $contentType = static::requestContentType();
+                        if (!static::isJsonContentType($contentType)) {
+                            throw new \RuntimeException(
+                                sprintf(
+                                    'Unsupported Content-Type "%s"; expected application/json',
+                                    $contentType ?: '(missing)'
+                                ),
+                                415
+                            );
+                        }
+
+                        $body = Router::parse_post_body(false);
+                        static::decodeJsonBody($body);
+
                         $serializer = \JMS\Serializer\SerializerBuilder::create()->build();
-                        $type = new \JMS\Serializer\Annotation\Type;
-                        $params[] = $serializer->deserialize(Router::parse_post_body(false),
-                            $fn_param->getClass()->getName(), 'json');
+                        $params[] = $serializer->deserialize($body, $fnClass, 'json');
                     } // hinting as array allows overriding _deserialize
-                    elseif ($fn_param && $fn_param->isArray()) {
+                    elseif ($fnIsArray) {
                         $params[] = Router::parse_post_body();
                     } // use _deserialize as the default parser for non-type-hinted methods
                     elseif (is_callable(array($controller, '_deserialize'))) {
@@ -603,12 +624,32 @@ class Router
         }
     }
 
-    public static function parse_post_body($decoded = true, $as_array = true)
+    private static function requestContentType(): string
     {
-        $contentType = strtolower(trim(explode(
+        return strtolower(trim(explode(
             ';',
             $_SERVER['CONTENT_TYPE'] ?? $_SERVER['HTTP_CONTENT_TYPE'] ?? ''
         )[0]));
+    }
+
+    private static function isJsonContentType(string $contentType): bool
+    {
+        return $contentType === 'application/json'
+            || str_ends_with($contentType, '+json');
+    }
+
+    private static function decodeJsonBody(string $body, bool $asArray = true): mixed
+    {
+        try {
+            return json_decode($body, $asArray, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $ex) {
+            throw new \RuntimeException('Invalid JSON request body', 400, $ex);
+        }
+    }
+
+    public static function parse_post_body($decoded = true, $as_array = true)
+    {
+        $contentType = static::requestContentType();
 
         // $_POST is normally an array populated by PHP for form requests.
         // Keeping string support is useful for tests and callers that inject a raw body.
@@ -620,8 +661,8 @@ class Router
             return $postBody;
         }
 
-        if ($contentType === 'application/json' || str_ends_with($contentType, '+json')) {
-            return json_decode($postBody, $as_array);
+        if (static::isJsonContentType($contentType)) {
+            return static::decodeJsonBody($postBody, $as_array);
         }
 
         if ($contentType === 'application/x-www-form-urlencoded') {

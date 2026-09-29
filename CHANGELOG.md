@@ -38,6 +38,7 @@ All notable changes to Objectiveweb Router are documented in this file.
 
 - Route execution now catches all PHP `Throwable` failures, including `TypeError`/`Error`, normalizes invalid exception codes to HTTP 500, and includes dependency-injection/callback resolution inside the HTTP error boundary.
 - Request body parsing now follows `Content-Type`: JSON (including `+json` media types), URL-encoded forms, multipart forms, and raw/unknown bodies are handled explicitly.
+- Class-typed controller request bodies now require a JSON media type, return 415 for unsupported/missing `Content-Type`, and return 400 for malformed JSON instead of surfacing as a server error.
 - HTTP-method template fallback no longer uses an accidental variable-variable expression.
 - Controller responses that are not arrays no longer reach the array-only template renderer.
 - Overridden `respond()` methods work again through late static binding.
@@ -112,6 +113,12 @@ Response representation is now negotiated from the request `Accept` header. Cont
 All routed responses now enter the common `respond()` pipeline. Custom subclasses overriding `respond()` therefore see normal responses, registered-serializer responses, and exceptions.
 
 A renderable object may return either a completed string body or a structured non-string value. Non-string values are JSON-encoded by the router.
+
+### Request bodies
+
+Controller methods whose final body parameter is a class are automatically deserialized with JMS Serializer only for `application/json` and `application/*+json` requests. Other or missing media types receive HTTP 415. Malformed JSON receives HTTP 400.
+
+Array-typed body parameters continue to use the router's Content-Type-aware parser. Unknown media types are preserved as raw bodies where no typed DTO deserialization is requested.
 
 ### Templates
 
