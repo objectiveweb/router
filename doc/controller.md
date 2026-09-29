@@ -8,6 +8,66 @@ $router->controller('/products', App\ProductsController::class);
 
 When a class name is supplied, Router constructs it through Dice. Additional arguments passed to \`controller()\` are available during controller construction.
 
+## Regex controller paths
+
+The \`$path\` argument is a regular expression, not only a literal prefix. Any capture groups inside it are passed to the controller constructor.
+
+\`\`\`php
+$router->controller(
+    '/accounts/([0-9]+)/regions/([a-z]+)',
+    AccountController::class
+);
+\`\`\`
+
+Given:
+
+\`\`\`text
+GET /accounts/42/regions/us/products
+\`\`\`
+
+the path regex captures \`42\` and \`us\`. Router uses those values as constructor arguments, while the unmatched remainder, \`products\`, continues through normal controller method resolution:
+
+\`\`\`php
+class AccountController
+{
+    public function __construct(
+        AccountRepository $accounts,
+        string $accountId,
+        string $region
+    ) {
+    }
+
+    public function get(string $path, array $query)
+    {
+        // $path === 'products'
+    }
+}
+\`\`\`
+
+Explicit arguments passed after the controller are placed before regex captures:
+
+\`\`\`php
+$router->controller(
+    '/accounts/([0-9]+)',
+    AccountController::class,
+    'explicit'
+);
+\`\`\`
+
+For \`/accounts/42/...\`, Dice receives constructor arguments in this order:
+
+\`\`\`php
+['explicit', '42']
+\`\`\`
+
+Use a non-capturing group when regex grouping is needed only for matching:
+
+\`\`\`php
+$router->controller('/api/(?:v1|v2)', ApiController::class);
+\`\`\`
+
+Only capturing groups \`(...)\` are forwarded to the constructor; non-capturing groups \`(?:...)\` are not.
+
 ## Method resolution
 
 For a controller bound to \`/products\`, Router resolves requests as follows.

@@ -55,11 +55,33 @@ Callbacks may also be written as \`[Controller::class, 'method']\`. Class-name c
 
 ## Controllers
 
-Bind a URL prefix to a controller:
+Bind a URL pattern to a controller:
 
 \`\`\`php
 $router->controller('/products', App\ProductsController::class);
 \`\`\`
+
+Controller paths are regular expressions. Capture groups in the controller path are passed to the controller constructor after any explicit constructor arguments supplied to \`controller()\`:
+
+\`\`\`php
+$router->controller(
+    '/accounts/([0-9]+)/regions/([a-z]+)',
+    App\AccountController::class,
+    'explicit-argument'
+);
+\`\`\`
+
+For \`GET /accounts/42/regions/us/products\`, Router constructs the controller as if Dice had been called with:
+
+\`\`\`php
+$router->create(App\AccountController::class, [
+    'explicit-argument',
+    '42',
+    'us',
+]);
+\`\`\`
+
+The remaining \`products\` path is then used for controller method resolution. Use non-capturing groups such as \`(?:...)\` when a regex group should affect matching without becoming a constructor argument.
 
 Controller resolution follows these rules:
 
