@@ -105,68 +105,96 @@ class Router
      */
     public function route($request, $callback)
     {
+        return $this->dispatchRoute(
+            $request,
+            $callback,
+            array_slice(func_get_args(), 2)
+        );
+    }
 
+    /**
+     * Match and execute a route through the common callback/error boundary.
+     *
+     * $argumentFactory is used by HTTP verb helpers so request-derived
+     * arguments such as query parameters and decoded bodies are created only
+     * after the route matches and inside the Throwable boundary.
+     */
+    private function dispatchRoute(
+        string $request,
+        $callback,
+        array $extraArgs = [],
+        ?callable $argumentFactory = null
+    ): void {
         // support PATH_INFO when using mod_rewrite
         if (empty($_SERVER['REDIRECT_URL'])) {
             $_SERVER['REDIRECT_URL'] = preg_replace('/\?.*$/', '', $_SERVER['REQUEST_URI']);
         }
 
-        $p = sprintf('/%s(\\/%s)?(.*)/',
-            str_replace('/', '\\/', dirname($_SERVER['SCRIPT_NAME'])),
-            str_replace('.', '\\.', basename($_SERVER['SCRIPT_NAME']))
+        $p = sprintf('/%s(\/%s)?(.*)/',
+            str_replace('/', '\/', dirname($_SERVER['SCRIPT_NAME'])),
+            str_replace('.', '\.', basename($_SERVER['SCRIPT_NAME']))
         );
 
         if (empty($_SERVER['PATH_INFO']) && preg_match($p, $_SERVER['REDIRECT_URL'], $m)) {
             $_SERVER['PATH_INFO'] = (empty($m[2]) || $m[2][0] != '/') ? '/' . $m[2] : $m[2];
         }
 
-        if (preg_match(sprintf("/^%s$/", str_replace('/', '\/', $request)), "{$_SERVER['REQUEST_METHOD']} {$_SERVER['PATH_INFO']}", $params)) {
+        if (!preg_match(
+            sprintf("/^%s$/", str_replace('/', '\/', $request)),
+            "{$_SERVER['REQUEST_METHOD']} {$_SERVER['PATH_INFO']}",
+            $params
+        )) {
+            return;
+        }
 
-            array_shift($params);
+        array_shift($params);
 
-            // Route execution is the HTTP error boundary. Callback resolution,
-            // dependency injection, invocation and response preparation can all
-            // raise PHP 8 Errors as well as Exceptions, so catch Throwable.
-            try {
-                // route expects a callable
-                // this can be:
-                //  - a function()
-                //  - [ $instance, 'method' ]
-                //  - [ 'Classname', 'method' ]
+        // Route execution is the HTTP error boundary. Callback resolution,
+        // dependency injection, request argument preparation, invocation and
+        // response preparation can all raise PHP Errors or Exceptions.
+        try {
+            // A [ClassName::class, 'method'] callback is resolved through Dice.
+            if (is_array($callback) && is_string($callback[0])) {
+                $callback[0] = $this->create($callback[0], $params);
+            }
 
-                // For the third case, instantiate the class through Dice.
-                if (is_array($callback) && is_string($callback[0])) {
-                    $callback[0] = $this->create($callback[0], $params);
-                }
+            if (!is_callable($callback)) {
+                $callbackType = is_string($callback) ? $callback : get_debug_type($callback);
+                throw new \RuntimeException(
+                    sprintf(_('%s: Invalid callback'), $callbackType),
+                    500
+                );
+            }
 
-                if (!is_callable($callback)) {
-                    $callbackType = is_string($callback) ? $callback : get_debug_type($callback);
-                    throw new \RuntimeException(
-                        sprintf(_('%s: Invalid callback'), $callbackType),
+            if ($argumentFactory !== null) {
+                $resolvedArgs = $argumentFactory();
+                if (!is_array($resolvedArgs)) {
+                    throw new \UnexpectedValueException(
+                        'Route argument factory must return an array',
                         500
                     );
                 }
 
-                if (func_num_args() > 2) {
-                    $params = array_merge($params, array_slice(func_get_args(), 2));
-                }
-
-                $response = call_user_func_array($callback, $params);
-                if ($response !== NULL) {
-                    static::respond($response);
-                }
-            } catch (\Throwable $ex) {
-                $status = (int) $ex->getCode();
-                if ($status < 400 || $status > 599) {
-                    $status = 500;
-                }
-
-                if ($status >= 500) {
-                    error_log(get_class($ex) . ' ' . $ex->getMessage() . " @ " . $ex->getTraceAsString());
-                }
-
-                static::respond($ex, $status);
+                $extraArgs = array_merge($extraArgs, $resolvedArgs);
             }
+
+            $params = array_merge($params, $extraArgs);
+
+            $response = call_user_func_array($callback, $params);
+            if ($response !== NULL) {
+                static::respond($response);
+            }
+        } catch (\Throwable $ex) {
+            $status = (int) $ex->getCode();
+            if ($status < 400 || $status > 599) {
+                $status = 500;
+            }
+
+            if ($status >= 500) {
+                error_log(get_class($ex) . ' ' . $ex->getMessage() . " @ " . $ex->getTraceAsString());
+            }
+
+            static::respond($ex, $status);
         }
     }
 
@@ -467,16 +495,11 @@ class Router
      */
     public function DELETE($path, $callback)
     {
-        if (!is_callable($callback)) {
-            throw new \Exception(sprintf(_('%s: Invalid callback'), $callback), 500);
-        }
-
-        $this->route("DELETE $path", function () use ($callback) {
-            $args = func_get_args();
-            $args[] = $_GET;
-
-            return call_user_func_array($callback, $args);
-        });
+        $this->dispatchRoute(
+            "DELETE $path",
+            $callback,
+            argumentFactory: static fn (): array => [$_GET]
+        );
     }
 
     /**
@@ -488,16 +511,11 @@ class Router
      */
     public function GET($path, $callback)
     {
-        if (!is_callable($callback)) {
-            throw new \Exception(sprintf(_('%s: Invalid callback'), $callback), 500);
-        }
-
-        $this->route("GET $path", function () use ($callback) {
-            $args = func_get_args();
-            $args[] = $_GET;
-
-            return call_user_func_array($callback, $args);
-        });
+        $this->dispatchRoute(
+            "GET $path",
+            $callback,
+            argumentFactory: static fn (): array => [$_GET]
+        );
     }
 
     /**
@@ -509,16 +527,11 @@ class Router
      */
     public function POST($path, $callback)
     {
-        if (!is_callable($callback)) {
-            throw new \Exception(sprintf(_('%s: Invalid callback'), $callback), 500);
-        }
-
-        $this->route("POST $path", function () use ($callback) {
-            $args = func_get_args();
-            $args[] = Router::parse_post_body();
-
-            return call_user_func_array($callback, $args);
-        });
+        $this->dispatchRoute(
+            "POST $path",
+            $callback,
+            argumentFactory: static fn (): array => [Router::parse_post_body()]
+        );
     }
 
     /**
@@ -530,16 +543,11 @@ class Router
      */
     public function PUT($path, $callback)
     {
-        if (!is_callable($callback)) {
-            throw new \Exception(sprintf(_('%s: Invalid callback'), $callback), 500);
-        }
-
-        $this->route("PUT $path", function () use ($callback) {
-            $args = func_get_args();
-            $args[] = Router::parse_post_body();
-
-            return call_user_func_array($callback, $args);
-        });
+        $this->dispatchRoute(
+            "PUT $path",
+            $callback,
+            argumentFactory: static fn (): array => [Router::parse_post_body()]
+        );
     }
 
     /**

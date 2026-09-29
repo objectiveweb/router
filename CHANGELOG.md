@@ -38,6 +38,7 @@ All notable changes to Objectiveweb Router are documented in this file.
 
 ### Fixed
 
+- `GET()`, `POST()`, `PUT()`, and `DELETE()` now share the same callback resolution and Throwable boundary as `route()`, including Dice-backed class callbacks and request argument preparation.
 - Example controller dependencies are explicitly declared properties, removing the PHP 8.2+ dynamic-property deprecation.
 - Default Throwable responses now negotiate HTML or JSON without replacing the original 4xx/5xx status with 406 for HTML clients.
 - Route execution now catches all PHP `Throwable` failures, including `TypeError`/`Error`, normalizes invalid exception codes to HTTP 500, and includes dependency-injection/callback resolution inside the HTTP error boundary.

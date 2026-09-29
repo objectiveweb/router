@@ -6,6 +6,19 @@ require_once __DIR__ . '/TestableRouter.php';
 use PHPUnit\Framework\TestCase;
 use Test\Router;
 
+class ErrorBoundaryVerbController
+{
+    public function get(array $query): array
+    {
+        return $query;
+    }
+
+    public function post(array $body): array
+    {
+        return $body;
+    }
+}
+
 class ErrorBoundaryTest extends TestCase
 {
     private Router $router;
@@ -105,6 +118,85 @@ class ErrorBoundaryTest extends TestCase
 
         $this->assertInstanceOf(\RuntimeException::class, $response_value);
         $this->assertSame(500, $response_code);
+    }
+
+    public function testVerbHelpersKeepInvalidCallbacksInsideBoundary(): void
+    {
+        global $response_value, $response_code;
+
+        foreach (['GET', 'POST', 'PUT', 'DELETE'] as $method) {
+            $response_value = null;
+            $response_code = null;
+
+            $_POST = [];
+            $_SERVER['PATH_INFO'] = '/invalid-helper';
+            $_SERVER['REQUEST_METHOD'] = $method;
+            $_SERVER['REQUEST_URI'] = '/invalid-helper';
+            $_SERVER['REDIRECT_URL'] = '/invalid-helper';
+            unset($_SERVER['CONTENT_TYPE'], $_SERVER['HTTP_CONTENT_TYPE']);
+
+            $this->router->{$method}('/invalid-helper', 'not-a-callable');
+
+            $this->assertInstanceOf(\RuntimeException::class, $response_value);
+            $this->assertSame(500, $response_code);
+        }
+    }
+
+    public function testGetHelperResolvesClassCallbackThroughDice(): void
+    {
+        global $response_value, $response_code;
+
+        $_GET = ['filter' => 'active'];
+        $_SERVER['PATH_INFO'] = '/class-helper';
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REQUEST_URI'] = '/class-helper';
+        $_SERVER['REDIRECT_URL'] = '/class-helper';
+
+        $this->router->GET(
+            '/class-helper',
+            [ErrorBoundaryVerbController::class, 'get']
+        );
+
+        $this->assertSame(['filter' => 'active'], $response_value);
+        $this->assertSame(200, $response_code);
+    }
+
+    public function testPostHelperResolvesClassCallbackAndParsesBodyInsideBoundary(): void
+    {
+        global $response_value, $response_code;
+
+        $_POST = '{"name":"router"}';
+        $_SERVER['PATH_INFO'] = '/class-helper';
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['CONTENT_TYPE'] = 'application/json';
+        $_SERVER['REQUEST_URI'] = '/class-helper';
+        $_SERVER['REDIRECT_URL'] = '/class-helper';
+
+        $this->router->POST(
+            '/class-helper',
+            [ErrorBoundaryVerbController::class, 'post']
+        );
+
+        $this->assertSame(['name' => 'router'], $response_value);
+        $this->assertSame(200, $response_code);
+    }
+
+    public function testPostHelperBodyParsingFailureStaysInsideBoundary(): void
+    {
+        global $response_value, $response_code;
+
+        $_POST = '{"name":';
+        $_SERVER['PATH_INFO'] = '/body-error';
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['CONTENT_TYPE'] = 'application/json';
+        $_SERVER['REQUEST_URI'] = '/body-error';
+        $_SERVER['REDIRECT_URL'] = '/body-error';
+
+        $this->router->POST('/body-error', static fn (array $body) => $body);
+
+        $this->assertInstanceOf(\RuntimeException::class, $response_value);
+        $this->assertSame('Invalid JSON request body', $response_value->getMessage());
+        $this->assertSame(400, $response_code);
     }
 
     public function testThrowableUsesStandardErrorEnvelope(): void
