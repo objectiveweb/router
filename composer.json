@@ -20,7 +20,7 @@
         "jms/serializer": "^3.32"
     },
     "scripts": {
-        "test": "phpunit test/"
+        "test": "phpunit --fail-on-deprecation --display-deprecations test/"
     },
     "license": "MIT"
 }

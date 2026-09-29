@@ -26,6 +26,7 @@ All notable changes to Objectiveweb Router are documented in this file.
 
 ### Changed
 
+- Test execution now fails on PHP/PHPUnit deprecations so the supported PHP matrix remains deprecation-clean.
 - Response negotiation now honors `Accept` media ranges, q-values, wildcards, and q=0 exclusions; HTML/JSON responses use explicit content types and unsupported requests receive 406.
 - Require Objectiveweb Dice `^4.1.0`.
 - Update JMS Serializer development compatibility to `^3.32`.
@@ -36,6 +37,7 @@ All notable changes to Objectiveweb Router are documented in this file.
 
 ### Fixed
 
+- Example controller dependencies are explicitly declared properties, removing the PHP 8.2+ dynamic-property deprecation.
 - Default Throwable responses now negotiate HTML or JSON without replacing the original 4xx/5xx status with 406 for HTML clients.
 - Route execution now catches all PHP `Throwable` failures, including `TypeError`/`Error`, normalizes invalid exception codes to HTTP 500, and includes dependency-injection/callback resolution inside the HTTP error boundary.
 - Request body parsing now follows `Content-Type`: JSON (including `+json` media types), URL-encoded forms, multipart forms, and raw/unknown bodies are handled explicitly.

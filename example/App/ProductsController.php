@@ -6,10 +6,11 @@ use App\Model\Product;
 
 class ProductsController {
     
-  private $name;
+  private \App\DB\ProductsRepository $products;
+  private string $name;
   
   // emulate authentication for tests
-  public $auth = false;
+  public bool $auth = false;
   
   // ProductsRepository will be injected automatically
   // $name is a random parameter to demonstrate additional parameters
