@@ -14,6 +14,9 @@ class Router
 
     private \Dice\Dice $dice;
     private array $requestMiddlewares = [];
+    private array $activeRequestMiddlewares = [];
+    private bool $requestMiddlewaresStarted = false;
+    private bool $requestMiddlewaresFinished = false;
 
     function __construct(?string $_root = null, private array $config = [])
     {
@@ -71,6 +74,48 @@ class Router
             'class' => $class,
             'args' => $args,
         ];
+    }
+
+    private function startRequestMiddlewares(string $method, string $path): void
+    {
+        if ($this->requestMiddlewaresStarted) {
+            return;
+        }
+
+        $this->requestMiddlewaresStarted = true;
+
+        foreach ($this->requestMiddlewares as $definition) {
+            $middleware = $this->create(
+                $definition['class'],
+                $definition['args']
+            );
+
+            if (method_exists($middleware, 'before')) {
+                $middleware->before($method, $path);
+            }
+
+            $this->activeRequestMiddlewares[] = $middleware;
+        }
+    }
+
+    private function finishRequestMiddlewares(
+        string $method,
+        string $path,
+        mixed $response
+    ): mixed {
+        if ($this->requestMiddlewaresFinished) {
+            return $response;
+        }
+
+        foreach (array_reverse($this->activeRequestMiddlewares) as $middleware) {
+            if (method_exists($middleware, 'after')) {
+                $response = $middleware->after($method, $path, $response);
+            }
+        }
+
+        $this->requestMiddlewaresFinished = true;
+
+        return $response;
     }
 
     static function addSerializer($type, $callback)
@@ -169,38 +214,27 @@ class Router
             $_SERVER['PATH_INFO'] = (empty($m[2]) || $m[2][0] != '/') ? '/' . $m[2] : $m[2];
         }
 
-        if (!preg_match(
-            sprintf("/^%s$/", str_replace('/', '\/', $request)),
-            "{$_SERVER['REQUEST_METHOD']} {$_SERVER['PATH_INFO']}",
-            $params
-        )) {
-            return;
-        }
-
-        array_shift($params);
+        $method = (string) $_SERVER['REQUEST_METHOD'];
+        $path = (string) $_SERVER['PATH_INFO'];
 
         // Route execution is the HTTP error boundary. Request middleware,
-        // callback resolution, dependency injection, request argument preparation,
-        // invocation and response preparation can all raise PHP Errors or Exceptions.
+        // route matching, callback resolution, dependency injection, request
+        // argument preparation, invocation and response preparation can all
+        // raise PHP Errors or Exceptions.
         try {
-            $requestMiddlewares = [];
-            $method = (string) $_SERVER['REQUEST_METHOD'];
-            $path = (string) $_SERVER['PATH_INFO'];
+            // Request middleware is global to the incoming request. before()
+            // runs once, before route matching begins.
+            $this->startRequestMiddlewares($method, $path);
 
-            // Request middleware wraps the entire matched route. before() runs
-            // in declaration order and after() unwinds in reverse order.
-            foreach ($this->requestMiddlewares as $definition) {
-                $middleware = $this->create(
-                    $definition['class'],
-                    $definition['args']
-                );
-
-                if (method_exists($middleware, 'before')) {
-                    $middleware->before($method, $path);
-                }
-
-                $requestMiddlewares[] = $middleware;
+            if (!preg_match(
+                sprintf("/^%s$/", str_replace('/', '\/', $request)),
+                "$method $path",
+                $params
+            )) {
+                return;
             }
+
+            array_shift($params);
 
             // A [ClassName::class, 'method'] callback is resolved through Dice.
             if (is_array($callback) && is_string($callback[0])) {
@@ -231,13 +265,8 @@ class Router
 
             $response = call_user_func_array($callback, $params);
 
-            foreach (array_reverse($requestMiddlewares) as $middleware) {
-                if (method_exists($middleware, 'after')) {
-                    $response = $middleware->after($method, $path, $response);
-                }
-            }
-
             if ($response !== NULL) {
+                $response = $this->finishRequestMiddlewares($method, $path, $response);
                 static::respond($response);
             }
         } catch (\Throwable $ex) {

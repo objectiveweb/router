@@ -65,7 +65,7 @@ Arguments after the middleware class name are passed to the middleware construct
 
 ## Global request middleware
 
-Request middleware is application-wide middleware around a matched route. It runs before callback or controller resolution, so it is appropriate for concerns that are not tied to a controller method, such as CORS, tracing, request IDs, and global response decoration.
+Request middleware is application-wide middleware around the incoming request. Its `before()` hooks run once before route matching begins, so it is appropriate for concerns that must see every request, such as CORS, tracing, request IDs, and global request validation. Its `after()` hooks run when a route produces a response.
 
 Request middleware is constructed through the Router's Dice container.
 
@@ -108,7 +108,7 @@ $router->addRequestMiddleware(TracingMiddleware::class, ['http']);
 
 Constructor arguments are passed to Dice through `Router::create()`, so normal DI rules and shared dependencies continue to work.
 
-For a matched controller request, execution order is:
+For a controller request that produces a response, execution order is:
 
 1. Request middleware `before()` hooks in declaration order.
 2. Controller middleware `before()` hooks in declaration order.

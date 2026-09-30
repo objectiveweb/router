@@ -151,6 +151,26 @@ class RequestMiddlewareTest extends TestCase
         );
     }
 
+    public function testRequestBeforeRunsBeforeMethodSpecificRouteMatching(): void
+    {
+        global $response_value;
+
+        $_SERVER['PATH_INFO'] = '/direct';
+        $_SERVER['REQUEST_METHOD'] = 'OPTIONS';
+        $_SERVER['REQUEST_URI'] = '/direct';
+        $_SERVER['REDIRECT_URL'] = '/direct';
+
+        $router = new Router();
+        $router->addRequestMiddleware(RecordingRequestMiddleware::class, ['global']);
+
+        $router->GET('/direct', static fn (): string => 'unreachable');
+
+        $this->assertNull($response_value);
+        $this->assertSame([
+            'request-before:global:OPTIONS:/direct',
+        ], RequestMiddlewareEvents::$events);
+    }
+
     public function testRequestMiddlewareWrapsDirectRoutes(): void
     {
         global $response_value;
