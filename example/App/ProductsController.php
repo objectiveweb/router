@@ -74,13 +74,6 @@ class ProductsController
         return $products;
     }
 
-    public function headSale(): string
-    {
-        header('X-Sale: true');
-
-        return '';
-    }
-
     public function optionsSale(): int
     {
         return $this->products->count();

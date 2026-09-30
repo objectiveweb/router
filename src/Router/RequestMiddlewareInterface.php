@@ -5,7 +5,7 @@ namespace Objectiveweb\Router;
 interface RequestMiddlewareInterface
 {
     /**
-     * Runs after a route matches but before callback/controller resolution.
+     * Runs once for the incoming request before route matching begins.
      */
     public function before(
         string $method,
@@ -13,7 +13,7 @@ interface RequestMiddlewareInterface
     ): void;
 
     /**
-     * Runs after callback/controller execution and may transform the response.
+     * Runs after a matched callback/controller produces a response and may transform it.
      */
     public function after(
         string $method,

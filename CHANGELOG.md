@@ -37,6 +37,7 @@ All notable changes to Objectiveweb Router are documented in this file.
 
 ### Changed
 
+- Request middleware interface documentation now matches runtime behavior: request `before()` hooks run once before route matching starts; stale HEAD-specific controller examples were removed.
 - `route()` and `controller()` now expose their supported additional arguments explicitly as `mixed ...$args` instead of relying on hidden `func_get_args()` behavior.
 - Tighten straightforward public Router method signatures with PHP 8.1 parameter and return types while keeping route callbacks `mixed` so invalid callbacks stay inside the controlled HTTP error boundary.
 - Keep `isAjax()` as a typed `bool` request helper and remove the unused private `_call()` helper and stale JMS import.
@@ -144,6 +145,17 @@ Default error responses support both HTML and JSON representations, so an existi
 All routed responses now enter the common `respond()` pipeline. Custom subclasses overriding `respond()` therefore see normal responses, registered-serializer responses, and exceptions.
 
 A renderable object may return either a completed string body or a structured non-string value. Non-string values are JSON-encoded by the router.
+
+### HEAD controller actions
+
+Router v2 could resolve HEAD requests to controller methods such as `head()` and `headSale()`. Router v3 deliberately follows normal HTTP HEAD fallback semantics instead:
+
+- `HEAD /products` resolves through the same controller action as GET, typically `index()`.
+- `HEAD /products/42` resolves through `get('42', ...)`.
+- `HEAD /products/sale` resolves through `getSale()`, then the normal GET/custom fallback rules.
+- The final response keeps the GET representation/status headers but suppresses the body.
+
+Applications using v2 `head()` or `headFoo()` controller methods should move that behavior into the corresponding GET handler or request middleware.
 
 ### Request bodies
 

@@ -97,6 +97,8 @@ If the first path segment does not identify a custom controller method, it remai
 
 Additional path segments are passed in order.
 
+HEAD is always resolved with GET controller semantics in v3. A base-path HEAD request uses `index()`, and a path/custom HEAD request uses the corresponding `get()` / `getFoo()` resolution. Controller methods named `head()` or `headFoo()` are therefore not selected for HEAD requests.
+
 ### Custom methods
 
 For a non-empty first segment, Router checks:

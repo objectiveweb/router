@@ -70,6 +70,8 @@ Because Router does not own a complete route table, it does not synthesize route
 
 The convenience `GET()` helper and controller dispatcher implement normal `HEAD` fallback to GET semantics. Raw `route()` remains exactly the regex supplied by the application; use a pattern such as `(?:GET|HEAD) /path` when the raw route should accept both methods.
 
+For controllers, this is an intentional v3 behavior change: legacy v2 `head()` and `headFoo()` handlers no longer receive HEAD requests. Define the GET handler instead; Router executes it with HEAD response-body suppression.
+
 ## Controllers
 
 Bind a URL pattern to a controller:
