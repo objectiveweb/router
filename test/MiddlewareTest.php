@@ -162,6 +162,41 @@ class MiddlewareTest extends TestCase
         $response_code = null;
     }
 
+    public function testMiddlewareAttributeHasTypedPublicContract(): void
+    {
+        $attribute = new Middleware(
+            RecordingMiddleware::class,
+            'first',
+            2,
+            ['third' => true]
+        );
+
+        $this->assertSame(RecordingMiddleware::class, $attribute->getClass());
+        $this->assertSame(
+            ['first', 2, ['third' => true]],
+            $attribute->getArgs()
+        );
+
+        $constructor = new \ReflectionMethod(Middleware::class, '__construct');
+        $parameters = $constructor->getParameters();
+
+        $this->assertSame('string', (string) $parameters[0]->getType());
+        $this->assertTrue($parameters[1]->isVariadic());
+        $this->assertSame('mixed', (string) $parameters[1]->getType());
+
+        $this->assertSame(
+            'string',
+            (string) (new \ReflectionMethod(Middleware::class, 'getClass'))->getReturnType()
+        );
+        $this->assertSame(
+            'array',
+            (string) (new \ReflectionMethod(Middleware::class, 'getArgs'))->getReturnType()
+        );
+
+        $property = new \ReflectionProperty(Middleware::class, 'args');
+        $this->assertSame('array', (string) $property->getType());
+    }
+
     public function testRepeatedMiddlewareOfSameClassIsPreserved(): void
     {
         global $response_value;

@@ -37,6 +37,7 @@ All notable changes to Objectiveweb Router are documented in this file.
 
 ### Changed
 
+- Type the `Middleware` attribute internals and API: `private array $args`, `mixed ...$args`, `getClass(): string`, and `getArgs(): array`.
 - Request middleware interface documentation now matches runtime behavior: request `before()` hooks run once before route matching starts; stale HEAD-specific controller examples were removed.
 - `route()` and `controller()` now expose their supported additional arguments explicitly as `mixed ...$args` instead of relying on hidden `func_get_args()` behavior.
 - Tighten straightforward public Router method signatures with PHP 8.1 parameter and return types while keeping route callbacks `mixed` so invalid callbacks stay inside the controlled HTTP error boundary.

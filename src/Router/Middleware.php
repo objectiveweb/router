@@ -5,19 +5,24 @@ namespace Objectiveweb\Router;
 use Attribute;
 
 #[Attribute(Attribute::TARGET_CLASS | Attribute::TARGET_METHOD | Attribute::IS_REPEATABLE)]
-class Middleware {
+class Middleware
+{
+    private array $args;
 
-    private $args;
-
-    public function __construct(private string $class, ...$args) {
+    public function __construct(
+        private string $class,
+        mixed ...$args
+    ) {
         $this->args = $args;
     }
 
-    public function getClass() {
+    public function getClass(): string
+    {
         return $this->class;
     }
 
-    public function getArgs() {
+    public function getArgs(): array
+    {
         return $this->args;
     }
 }
