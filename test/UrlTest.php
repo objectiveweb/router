@@ -73,6 +73,20 @@ class UrlTest extends TestCase
         $this->assertSame('https://app.example:8443/index.php', $router->url());
     }
 
+    public function testForwardedPortOverridesPortEmbeddedInForwardedHost(): void
+    {
+        $_SERVER['REMOTE_ADDR'] = '10.0.0.12';
+        $_SERVER['HTTP_X_FORWARDED_PROTO'] = 'https';
+        $_SERVER['HTTP_X_FORWARDED_HOST'] = 'app.example:8443';
+        $_SERVER['HTTP_X_FORWARDED_PORT'] = '443';
+
+        $router = new Router(null, [
+            'trusted.proxies' => ['10.0.0.0/8'],
+        ]);
+
+        $this->assertSame('https://app.example/index.php', $router->url());
+    }
+
     public function testTrustedIpv6CidrUsesForwardedHeaders(): void
     {
         $_SERVER['REMOTE_ADDR'] = '2001:db8:42::10';

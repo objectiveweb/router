@@ -695,36 +695,47 @@ class Router
             $hostHeader = $_SERVER['HTTP_HOST'] ?? ($_SERVER['SERVER_NAME'] ?? 'localhost');
             $port = isset($_SERVER['SERVER_PORT']) ? (int) $_SERVER['SERVER_PORT'] : null;
 
+            $forwardedProto = null;
+            $forwardedHost = null;
+            $forwardedPort = null;
+
             if ($trustedProxy) {
-                $forwardedProto = static::forwardedHeader('HTTP_X_FORWARDED_PROTO');
-                if ($forwardedProto !== null && in_array(strtolower($forwardedProto), ['http', 'https'], true)) {
-                    $protocol = strtolower($forwardedProto);
+                $candidateProto = static::forwardedHeader('HTTP_X_FORWARDED_PROTO');
+                if (
+                    $candidateProto !== null
+                    && in_array(strtolower($candidateProto), ['http', 'https'], true)
+                ) {
+                    $forwardedProto = strtolower($candidateProto);
+                    $protocol = $forwardedProto;
                 }
 
-                $forwardedHost = static::forwardedHeader('HTTP_X_FORWARDED_HOST');
-                if ($forwardedHost !== null && static::isValidHostHeader($forwardedHost)) {
+                $candidateHost = static::forwardedHeader('HTTP_X_FORWARDED_HOST');
+                if ($candidateHost !== null && static::isValidHostHeader($candidateHost)) {
+                    $forwardedHost = $candidateHost;
                     $hostHeader = $forwardedHost;
                 }
 
-                $forwardedPort = static::forwardedHeader('HTTP_X_FORWARDED_PORT');
-                if ($forwardedPort !== null && ctype_digit($forwardedPort)) {
-                    $candidatePort = (int) $forwardedPort;
-                    if ($candidatePort >= 1 && $candidatePort <= 65535) {
-                        $port = $candidatePort;
+                $candidatePort = static::forwardedHeader('HTTP_X_FORWARDED_PORT');
+                if ($candidatePort !== null && ctype_digit($candidatePort)) {
+                    $candidatePortNumber = (int) $candidatePort;
+                    if ($candidatePortNumber >= 1 && $candidatePortNumber <= 65535) {
+                        $forwardedPort = $candidatePortNumber;
                     }
                 }
             }
 
             [$host, $hostPort] = static::splitHostAndPort($hostHeader);
 
-            if ($trustedProxy && isset($forwardedHost) && $forwardedHost !== null && $hostPort !== null) {
+            if ($forwardedPort !== null) {
+                $port = $forwardedPort;
+            } elseif ($forwardedHost !== null && $hostPort !== null) {
                 $port = $hostPort;
-            } elseif (!$trustedProxy && $hostPort !== null) {
-                $port = $hostPort;
-            } elseif ($trustedProxy && isset($forwardedProto) && $forwardedProto !== null && !isset($forwardedPort)) {
+            } elseif ($forwardedProto !== null) {
                 // A proxy that supplies the external scheme but no explicit
                 // external port is assumed to use that scheme's default port.
                 $port = $protocol === 'https' ? 443 : 80;
+            } elseif ($hostPort !== null) {
+                $port = $hostPort;
             }
 
             $url = $protocol . '://' . $host;
