@@ -61,16 +61,20 @@ class TemplateTest extends TestCase
         $this->directories[] = $root;
 
         $file = $root . '/scope.php';
-        file_put_contents($file, '<?= basename($file) ?>:<?= $value ?>');
+        file_put_contents(
+            $file,
+            '<?= $file ?>:<?= $data["state"] ?>:<?= basename($__file) ?>:<?= $value ?>'
+        );
         $this->files[] = $file;
 
         $template = new Template($root, 'scope', [
-            'file' => '/tmp/overridden.php',
-            'data' => ['bad' => true],
+            'file' => 'user-file',
+            'data' => ['state' => 'user-data'],
+            '__file' => '/tmp/overridden.php',
             'value' => 'ok',
         ]);
 
-        $this->assertSame('scope.php:ok', $template->render());
+        $this->assertSame('user-file:user-data:scope.php:ok', $template->render());
     }
 
     public function testLayoutReceivesRenderedContentsEvenWhenDataContainsContentsKey(): void
@@ -110,7 +114,10 @@ class TemplateTest extends TestCase
         $this->directories[] = $root;
 
         $file = $root . '/throws.php';
-        file_put_contents($file, '<?php echo "partial"; throw new RuntimeException("template failed");');
+        file_put_contents(
+            $file,
+            '<?php ob_start(); echo "nested"; throw new RuntimeException("template failed");'
+        );
         $this->files[] = $file;
 
         $template = new Template($root, 'throws');
@@ -138,7 +145,10 @@ class TemplateTest extends TestCase
         $layoutFile = $layouts . '/main.php';
 
         file_put_contents($templateFile, 'body');
-        file_put_contents($layoutFile, '<?php echo "partial-layout"; throw new RuntimeException("layout failed");');
+        file_put_contents(
+            $layoutFile,
+            '<?php ob_start(); echo "nested-layout"; throw new RuntimeException("layout failed");'
+        );
 
         $this->files[] = $templateFile;
         $this->files[] = $layoutFile;

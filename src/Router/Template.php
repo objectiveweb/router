@@ -52,18 +52,28 @@ class Template
      *
      * Template data cannot overwrite local renderer variables.
      */
-    private function renderFile(string $file, array $data): string
+    private function renderFile(string $__file, array $__data): string
     {
-        extract($data, EXTR_SKIP);
+        extract($__data, EXTR_SKIP);
 
+        $bufferLevel = ob_get_level();
         ob_start();
 
         try {
-            include $file;
+            include $__file;
+
+            // If template code opened additional buffers without closing them,
+            // flush those into our rendering buffer before collecting it.
+            while (ob_get_level() > $bufferLevel + 1) {
+                ob_end_flush();
+            }
 
             return (string) ob_get_clean();
         } catch (\Throwable $exception) {
-            ob_end_clean();
+            // Restore exactly the buffer depth that existed before rendering.
+            while (ob_get_level() > $bufferLevel) {
+                ob_end_clean();
+            }
 
             throw $exception;
         }
