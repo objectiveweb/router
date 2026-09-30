@@ -263,6 +263,34 @@ class UrlTest extends TestCase
         ]);
     }
 
+    public function testTrustedHostsAcceptUnbracketedIpv6Literal(): void
+    {
+        $_SERVER['HTTP_HOST'] = '[2001:0db8:0:0::10]:8443';
+
+        $router = new Router(null, [
+            'trusted.hosts' => ['2001:db8::10'],
+        ]);
+
+        $this->assertSame(
+            'http://[2001:0db8:0:0::10]:8443/index.php',
+            $router->url()
+        );
+    }
+
+    public function testWildcardTrustedHostsRejectsInvalidBracketedIpv6Port(): void
+    {
+        $_SERVER['HTTP_HOST'] = '[2001:db8::10]:70000';
+
+        $router = new Router(null, [
+            'trusted.hosts' => '*',
+        ]);
+
+        $this->assertSame(
+            'http://internal.example:8080/index.php',
+            $router->url()
+        );
+    }
+
     public function testRelativeUrlsUseScriptDirectoryInSubdirectory(): void
     {
         $_SERVER['SCRIPT_NAME'] = '/apps/router/index.php';

@@ -66,11 +66,7 @@ class Router
 
         if (is_array($this->config['trusted.hosts'])) {
             foreach ($this->config['trusted.hosts'] as $host) {
-                if (
-                    !is_string($host)
-                    || !static::isValidHostHeader($host)
-                    || static::splitHostAndPort($host)[1] !== null
-                ) {
+                if (!is_string($host) || !static::isValidTrustedHost($host)) {
                     throw new \InvalidArgumentException(
                         sprintf(
                             'Invalid trusted host: %s',
@@ -920,6 +916,28 @@ class Router
         return $value;
     }
 
+    private static function isValidTrustedHost(string $host): bool
+    {
+        $host = trim($host);
+
+        if (
+            $host === ''
+            || preg_match('/[\s\x00-\x1f\x7f\/\\@?#]/', $host)
+        ) {
+            return false;
+        }
+
+        if (str_starts_with($host, '[') && str_ends_with($host, ']')) {
+            $host = substr($host, 1, -1);
+        }
+
+        if (@inet_pton($host) !== false) {
+            return true;
+        }
+
+        return preg_match('/^[A-Za-z0-9._-]+$/', $host) === 1;
+    }
+
     private static function isValidHostHeader(string $host): bool
     {
         if (
@@ -928,6 +946,19 @@ class Router
             || preg_match('/[\s\x00-\x1f\x7f\/\\@?#]/', $host)
         ) {
             return false;
+        }
+
+        if (str_starts_with($host, '[')) {
+            if (!preg_match('/^(\[[0-9a-fA-F:.]+\])(?::([0-9]+))?$/', $host, $matches)) {
+                return false;
+            }
+
+            if (
+                isset($matches[2])
+                && ((int) $matches[2] < 1 || (int) $matches[2] > 65535)
+            ) {
+                return false;
+            }
         }
 
         [$hostname] = static::splitHostAndPort($host);
