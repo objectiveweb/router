@@ -21,8 +21,9 @@ class Router extends \Objectiveweb\Router {
   public static function prepareHttpResponseForTest(
       $content,
       int $code = 200,
-      ?string $accept = null
+      ?string $accept = null,
+      ?string $requestMethod = null
   ): array {
-      return parent::prepareHttpResponse($content, $code, $accept);
+      return parent::prepareHttpResponse($content, $code, $accept, $requestMethod);
   }
 }

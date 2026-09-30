@@ -9,13 +9,13 @@ Lightweight PHP URL router with controller mapping and dependency injection.
 
 ## Installation
 
-\`\`\`bash
+```bash
 composer require objectiveweb/router:^3.0
-\`\`\`
+```
 
 ## Basic routing
 
-\`\`\`php
+```php
 <?php
 
 require __DIR__ . '/vendor/autoload.php';
@@ -43,70 +43,81 @@ $router->POST('/echo', function (array $body) {
 $router->route('([A-Z]+) /(.*)', function (string $method, string $path) {
     return "Request matched $method /$path";
 });
-\`\`\`
+```
 
 The verb helpers append request data after regex captures:
 
-- \`GET()\` and \`DELETE()\` append \`$_GET\`.
-- \`POST()\` and \`PUT()\` append the Content-Type-aware decoded request body.
-- \`route()\` passes regex captures directly, plus any additional arguments supplied to \`route()\`.
+- `GET()` and `DELETE()` append `$_GET`.
+- `POST()`, `PUT()`, and `PATCH()` append the Content-Type-aware decoded request body.
+- `GET()` also matches `HEAD` requests. The callback runs with GET semantics, but Router suppresses the final response body.
+- `route()` passes regex captures directly, plus any additional arguments supplied to `route()`.
 
-Callbacks may also be written as \`[Controller::class, 'method']\`. Class-name callbacks are instantiated through Dice before invocation.
+Callbacks may also be written as `[Controller::class, 'method']`. Class-name callbacks are instantiated through Dice before invocation.
+
+## Routing model
+
+Objectiveweb Router is an **immediate regex dispatcher**, not a complete route-table dispatcher. Calls to `route()`, the HTTP verb helpers, and `controller()` evaluate regular expressions against the current request and may execute immediately; Router does not first collect every application route into a route table.
+
+This is intentional: regular-expression routing and capture groups are first-class behavior, including controller-path captures that can be forwarded to controller constructors.
+
+Because Router does not own a complete route table, it does not synthesize route-table features such as named routes, reverse URL generation, route introspection, automatic generic `OPTIONS`, or global `405 Method Not Allowed` / `Allow` responses. Applications can register explicit regex routes or request middleware when those behaviors are needed.
+
+The convenience `GET()` helper and controller dispatcher implement normal `HEAD` fallback to GET semantics. Raw `route()` remains exactly the regex supplied by the application; use a pattern such as `(?:GET|HEAD) /path` when the raw route should accept both methods.
 
 ## Controllers
 
 Bind a URL pattern to a controller:
 
-\`\`\`php
+```php
 $router->controller('/products', App\ProductsController::class);
-\`\`\`
+```
 
-Controller paths are regular expressions. Capture groups in the controller path are passed to the controller constructor after any explicit constructor arguments supplied to \`controller()\`:
+Controller paths are regular expressions. Capture groups in the controller path are passed to the controller constructor after any explicit constructor arguments supplied to `controller()`:
 
-\`\`\`php
+```php
 $router->controller(
     '/accounts/([0-9]+)/regions/([a-z]+)',
     App\AccountController::class,
     'explicit-argument'
 );
-\`\`\`
+```
 
-For \`GET /accounts/42/regions/us/products\`, Router constructs the controller as if Dice had been called with:
+For `GET /accounts/42/regions/us/products`, Router constructs the controller as if Dice had been called with:
 
-\`\`\`php
+```php
 $router->create(App\AccountController::class, [
     'explicit-argument',
     '42',
     'us',
 ]);
-\`\`\`
+```
 
-The remaining \`products\` path is then used for controller method resolution. Use non-capturing groups such as \`(?:...)\` when a regex group should affect matching without becoming a constructor argument.
+The remaining `products` path is then used for controller method resolution. Use non-capturing groups such as `(?:...)` when a regex group should affect matching without becoming a constructor argument.
 
 Controller resolution follows these rules:
 
 | Request | Preferred controller method |
 | --- | --- |
-| \`GET /products\` | \`index($_GET)\` |
-| \`POST /products\` | \`post($body)\` |
-| \`PUT /products\` | \`put($body)\` |
-| \`PATCH /products\` | \`patch($body)\` |
-| \`GET /products/42\` | \`get('42', $_GET)\` |
-| \`POST /products/42\` | \`post('42', $body)\` |
-| \`GET /products/sale\` | \`getSale($_GET)\`, then \`sale($_GET)\`, then \`get('sale', $_GET)\` |
-| \`POST /products/sale\` | \`postSale($body)\`, then \`sale($body)\`, then \`post('sale', $body)\` |
+| `GET /products` | `index($_GET)` |
+| `POST /products` | `post($body)` |
+| `PUT /products` | `put($body)` |
+| `PATCH /products` | `patch($body)` |
+| `GET /products/42` | `get('42', $_GET)` |
+| `POST /products/42` | `post('42', $body)` |
+| `GET /products/sale` | `getSale($_GET)`, then `sale($_GET)`, then `get('sale', $_GET)` |
+| `POST /products/sale` | `postSale($body)`, then `sale($body)`, then `post('sale', $body)` |
 
 Hyphens in custom path method names are converted to underscores.
 
-For POST, PUT, and PATCH controller methods, the request body is appended as the final argument. If that final parameter is a class and JMS Serializer is installed, JSON and \`application/*+json\` requests are deserialized into that class. Unsupported or missing media types return 415 for class-typed bodies; malformed JSON returns 400.
+For POST, PUT, and PATCH controller methods, the request body is appended as the final argument. If that final parameter is a class and JMS Serializer is installed, JSON and `application/*+json` requests are deserialized into that class. Unsupported or missing media types return 415 for class-typed bodies; malformed JSON returns 400.
 
 See [controller mapping](doc/controller.md) for the full behavior.
 
 ## Middleware
 
-Request/response interception uses repeatable \`#[Middleware]\` attributes rather than controller \`before()\` hooks.
+Request/response interception uses repeatable `#[Middleware]` attributes rather than controller `before()` hooks.
 
-\`\`\`php
+```php
 use Objectiveweb\Router\Middleware;
 use Objectiveweb\Router\MiddlewareInterface;
 
@@ -136,7 +147,7 @@ class ProductsController
         return [];
     }
 }
-\`\`\`
+```
 
 See [middleware documentation](docs/middleware.md) for ordering and override rules.
 
@@ -178,9 +189,9 @@ Middleware may reject a request by throwing an HTTP exception, or terminate imme
 
 ## Dependency injection
 
-Router composes Objectiveweb Dice and exposes \`addRule()\` and \`create()\` as its supported DI API.
+Router composes Objectiveweb Dice and exposes `addRule()` and `create()` as its supported DI API.
 
-\`\`\`php
+```php
 $router->addRule(PDO::class, [
     'shared' => true,
     'constructParams' => [
@@ -191,11 +202,11 @@ $router->addRule(PDO::class, [
 ]);
 
 $pdo = $router->create(PDO::class);
-\`\`\`
+```
 
 Controllers and class callbacks are instantiated through the same container:
 
-\`\`\`php
+```php
 class ProductsController
 {
     public function __construct(private ProductsRepository $products)
@@ -209,30 +220,30 @@ class ProductsController
 }
 
 $router->controller('/products', ProductsController::class);
-\`\`\`
+```
 
 ## Templates
 
 Controller methods that return arrays may be rendered through PHP templates. The default template root is:
 
-\`\`\`text
+```text
 <composer project root>/templates
-\`\`\`
+```
 
-For a controller bound to \`/products\`, Router looks for a method-specific template first and then an HTTP-method fallback. If both HTML and JSON representations are available, the request \`Accept\` header selects the representation.
+For a controller bound to `/products`, Router looks for a method-specific template first and then an HTTP-method fallback. If both HTML and JSON representations are available, the request `Accept` header selects the representation.
 
 You can configure the template root and layout when constructing the router:
 
-\`\`\`php
+```php
 $router = new Router(__DIR__, [
     'template.root' => __DIR__ . '/templates',
     'template.layout' => 'main',
 ]);
-\`\`\`
+```
 
 ## Response negotiation
 
-Router negotiates supported representations from \`Accept\`, including q-values, wildcards, and q=0 exclusions.
+Router negotiates supported representations from `Accept`, including q-values, wildcards, and q=0 exclusions. `HEAD` uses the same representation selection as GET but never emits a body. Informational responses and statuses `204`, `205`, and `304` also never emit a body.
 
 - Structured PHP values are JSON responses.
 - Strings and renderable objects can provide HTML or JSON.
@@ -242,10 +253,10 @@ Router negotiates supported representations from \`Accept\`, including q-values,
 
 ## Automatic controller routing
 
-\`\`\`php
+```php
 $router->run('App');
-\`\`\`
+```
 
-A request such as \`/products\` maps to \`App\ProductsController\`. Root and unmatched controller names fall back to \`App\HomeController\`.
+A request such as `/products` maps to `App\ProductsController`. Root and unmatched controller names fall back to `App\HomeController`.
 
-See \`example/app-run.php\` for a complete example.
+See `example/app-run.php` for a complete example.

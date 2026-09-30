@@ -72,6 +72,54 @@ class ControllerTest extends TestCase
         $this->assertSame(1, $response_value[0]->sku);
     }
 
+    public function testHeadUsesGetControllerSemantics(): void
+    {
+        global $response_value;
+
+        $this->route('HEAD', '/2');
+
+        $this->assertSame(2, $response_value->sku);
+    }
+
+    public function testHeadUsesGetCustomControllerMethod(): void
+    {
+        global $response_value;
+
+        $this->route('HEAD', '/sale');
+
+        $this->assertSame(90, $response_value[0]->price);
+    }
+
+    public function testGetHelperMatchesHeadRequests(): void
+    {
+        global $response_value;
+
+        $_SERVER['PATH_INFO'] = '/health';
+        $_SERVER['REQUEST_METHOD'] = 'HEAD';
+        $_SERVER['REQUEST_URI'] = '/health';
+        $_SERVER['REDIRECT_URL'] = '/health';
+
+        $this->app->GET('/health', static fn (array $query): string => 'ok');
+
+        $this->assertSame('ok', $response_value);
+    }
+
+    public function testPatchHelperParsesRequestBody(): void
+    {
+        global $response_value;
+
+        $_POST = '{"name":"patched"}';
+        $_SERVER['PATH_INFO'] = '/product';
+        $_SERVER['REQUEST_METHOD'] = 'PATCH';
+        $_SERVER['CONTENT_TYPE'] = 'application/json';
+        $_SERVER['REQUEST_URI'] = '/product';
+        $_SERVER['REDIRECT_URL'] = '/product';
+
+        $this->app->PATCH('/product', static fn (array $body): array => $body);
+
+        $this->assertSame(['name' => 'patched'], $response_value);
+    }
+
     public function testGet(): void
     {
         global $response_value;

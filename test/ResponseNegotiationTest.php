@@ -65,6 +65,36 @@ class ResponseNegotiationTest extends TestCase
         $this->assertSame('<strong>Hello</strong>', $response['body']);
     }
 
+    public function testHeadSuppressesBodyButPreservesRepresentation(): void
+    {
+        $response = Router::prepareHttpResponseForTest(
+            ['ok' => true],
+            200,
+            'application/json',
+            'HEAD'
+        );
+
+        $this->assertSame(200, $response['status']);
+        $this->assertSame('application/json', $response['content_type']);
+        $this->assertSame('', $response['body']);
+    }
+
+    public function testNoContentStatusesNeverContainBodyOrNegotiateRepresentation(): void
+    {
+        foreach ([101, 199, 204, 205, 304] as $status) {
+            $response = Router::prepareHttpResponseForTest(
+                ['ignored' => true],
+                $status,
+                'image/png'
+            );
+
+            $this->assertSame($status, $response['status']);
+            $this->assertSame('', $response['body']);
+            $this->assertNull($response['content_type']);
+            $this->assertFalse($response['vary_accept']);
+        }
+    }
+
     public function testThrowablePreserves404ForHtmlClient(): void
     {
         $response = Router::prepareHttpResponseForTest(

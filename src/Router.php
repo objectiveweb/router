@@ -327,7 +327,11 @@ class Router
                 $controller = $this->create($controller, $args);
             }
 
-            $method = strtolower($method);
+            $requestMethod = strtolower($method);
+            $method = $requestMethod === 'head' ? 'get' : $requestMethod;
+
+            // HEAD uses GET controller resolution while middleware still sees
+            // the actual request method.
 
             // url parameters
             $params = explode("/", $params);
@@ -484,7 +488,7 @@ class Router
                 );
 
                 if (method_exists($mw, 'before')) {
-                    $updatedParams = call_user_func([$mw, 'before'], $method, $fn, $params);
+                    $updatedParams = call_user_func([$mw, 'before'], $requestMethod, $fn, $params);
                     if (!is_array($updatedParams)) {
                         throw new \UnexpectedValueException(sprintf(
                             '%s::before() must return an array',
@@ -509,7 +513,7 @@ class Router
             // Execute implemented after() hooks in reverse order.
             foreach (array_reverse($middlewares) as $mw) {
                 if (method_exists($mw, 'after')) {
-                    $response = call_user_func([$mw, 'after'], $method, $fn, $params, $response);
+                    $response = call_user_func([$mw, 'after'], $requestMethod, $fn, $params, $response);
                 }
             }
 
@@ -576,7 +580,7 @@ class Router
     public function GET($path, $callback)
     {
         $this->dispatchRoute(
-            "GET $path",
+            "(?:GET|HEAD) $path",
             $callback,
             argumentFactory: static fn (): array => [$_GET]
         );
@@ -609,6 +613,22 @@ class Router
     {
         $this->dispatchRoute(
             "PUT $path",
+            $callback,
+            argumentFactory: static fn (): array => [Router::parse_post_body()]
+        );
+    }
+
+    /**
+     * Matches a PATCH request,
+     * Callback is called with regex matches + decoded request body
+     * @param $path
+     * @param callable $callback function(match[1], match[2], ..., <$request_body>)
+     * @throws \Exception
+     */
+    public function PATCH($path, $callback)
+    {
+        $this->dispatchRoute(
+            "PATCH $path",
             $callback,
             argumentFactory: static fn (): array => [Router::parse_post_body()]
         );
@@ -1015,12 +1035,35 @@ class Router
     protected static function prepareHttpResponse(
         $content,
         int $code = 200,
-        ?string $accept = null
+        ?string $accept = null,
+        ?string $requestMethod = null
     ): array {
+        // Informational responses, 204, 205 and 304 never carry a message body
+        // and do not require representation negotiation.
+        if (
+            ($code >= 100 && $code < 200)
+            || $code === 204
+            || $code === 205
+            || $code === 304
+        ) {
+            return [
+                'status' => $code,
+                'body' => '',
+                'content_type' => null,
+                'vary_accept' => false,
+            ];
+        }
+
         $response = static::prepareResponse($content, $accept);
+        $status = $response['content_type'] === null ? 406 : $code;
+
+        // HEAD selects the same representation as GET but never emits its body.
+        if (strcasecmp((string) $requestMethod, 'HEAD') === 0) {
+            $response['body'] = '';
+        }
 
         return [
-            'status' => $response['content_type'] === null ? 406 : $code,
+            'status' => $status,
             ...$response,
         ];
     }
@@ -1030,7 +1073,8 @@ class Router
         $response = static::prepareHttpResponse(
             $content,
             $code,
-            $_SERVER['HTTP_ACCEPT'] ?? null
+            $_SERVER['HTTP_ACCEPT'] ?? null,
+            $_SERVER['REQUEST_METHOD'] ?? null
         );
 
         if ($response['vary_accept']) {

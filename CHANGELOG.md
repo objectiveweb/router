@@ -19,6 +19,8 @@ All notable changes to Objectiveweb Router are documented in this file.
 
 ### Added
 
+- `PATCH()` route helper with the same Content-Type-aware request-body handling as POST and PUT.
+- Automatic HEAD fallback for `GET()` helpers and controller GET actions.
 - DI-backed global request middleware with declaration-order `before()` hooks before route matching and reverse-order `after()` unwinding when a route produces a response.
 - Built-in `CorsMiddleware` for global CORS headers and terminating OPTIONS preflight requests.
 - GitHub Actions CI for PHP 8.1 through 8.5.
@@ -29,6 +31,8 @@ All notable changes to Objectiveweb Router are documented in this file.
 
 ### Changed
 
+- HEAD responses preserve GET representation semantics while suppressing the response body; 1xx, 204, 205, and 304 responses never carry a body.
+- Documentation now explicitly defines Objectiveweb Router as an immediate regex dispatcher rather than a route-table dispatcher.
 - `setCors()` now registers the built-in request-level `CorsMiddleware`; controller-specific CORS branching has been removed.
 - GitHub Actions workflows now use `actions/checkout@v7`, removing the deprecated Node 20 action runtime warning.
 - Test execution now fails on PHP/PHPUnit deprecations so the supported PHP matrix remains deprecation-clean.
