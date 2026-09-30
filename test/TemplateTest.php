@@ -54,6 +54,108 @@ class TemplateTest extends TestCase
         $this->assertSame('project-root', $template->render());
     }
 
+    public function testTemplateDataCannotOverwriteRendererVariables(): void
+    {
+        $root = sys_get_temp_dir() . '/objectiveweb-router-template-scope-' . bin2hex(random_bytes(8));
+        mkdir($root, 0777, true);
+        $this->directories[] = $root;
+
+        $file = $root . '/scope.php';
+        file_put_contents($file, '<?= basename($file) ?>:<?= $value ?>');
+        $this->files[] = $file;
+
+        $template = new Template($root, 'scope', [
+            'file' => '/tmp/overridden.php',
+            'data' => ['bad' => true],
+            'value' => 'ok',
+        ]);
+
+        $this->assertSame('scope.php:ok', $template->render());
+    }
+
+    public function testLayoutReceivesRenderedContentsEvenWhenDataContainsContentsKey(): void
+    {
+        $root = sys_get_temp_dir() . '/objectiveweb-router-template-layout-' . bin2hex(random_bytes(8));
+        $layouts = $root . '/_layouts';
+        mkdir($layouts, 0777, true);
+        $this->directories[] = $layouts;
+        $this->directories[] = $root;
+
+        $templateFile = $root . '/page.php';
+        $layoutFile = $layouts . '/main.php';
+
+        file_put_contents($templateFile, 'body:<?= $value ?>');
+        file_put_contents($layoutFile, '<main><?= $_contents ?></main>');
+
+        $this->files[] = $templateFile;
+        $this->files[] = $layoutFile;
+
+        $template = new Template(
+            $root,
+            'page',
+            [
+                'value' => 'ok',
+                '_contents' => 'attacker-controlled',
+            ],
+            'main'
+        );
+
+        $this->assertSame('<main>body:ok</main>', $template->render());
+    }
+
+    public function testTemplateExceptionRestoresOutputBufferLevel(): void
+    {
+        $root = sys_get_temp_dir() . '/objectiveweb-router-template-throw-' . bin2hex(random_bytes(8));
+        mkdir($root, 0777, true);
+        $this->directories[] = $root;
+
+        $file = $root . '/throws.php';
+        file_put_contents($file, '<?php echo "partial"; throw new RuntimeException("template failed");');
+        $this->files[] = $file;
+
+        $template = new Template($root, 'throws');
+        $level = ob_get_level();
+
+        try {
+            $template->render();
+            $this->fail('Expected template rendering to throw');
+        } catch (\RuntimeException $exception) {
+            $this->assertSame('template failed', $exception->getMessage());
+        }
+
+        $this->assertSame($level, ob_get_level());
+    }
+
+    public function testLayoutExceptionRestoresOutputBufferLevel(): void
+    {
+        $root = sys_get_temp_dir() . '/objectiveweb-router-layout-throw-' . bin2hex(random_bytes(8));
+        $layouts = $root . '/_layouts';
+        mkdir($layouts, 0777, true);
+        $this->directories[] = $layouts;
+        $this->directories[] = $root;
+
+        $templateFile = $root . '/page.php';
+        $layoutFile = $layouts . '/main.php';
+
+        file_put_contents($templateFile, 'body');
+        file_put_contents($layoutFile, '<?php echo "partial-layout"; throw new RuntimeException("layout failed");');
+
+        $this->files[] = $templateFile;
+        $this->files[] = $layoutFile;
+
+        $template = new Template($root, 'page', [], 'main');
+        $level = ob_get_level();
+
+        try {
+            $template->render();
+            $this->fail('Expected layout rendering to throw');
+        } catch (\RuntimeException $exception) {
+            $this->assertSame('layout failed', $exception->getMessage());
+        }
+
+        $this->assertSame($level, ob_get_level());
+    }
+
     public function testMissingAcceptPrefersHtmlTemplate(): void
     {
         global $response_value;

@@ -3,26 +3,16 @@
 namespace Objectiveweb\Router;
 
 /**
- * Template class for rendering PHP templates with optional layouts
- * 
- * This class provides a simple way to render templates and apply layouts
- * to the rendered content. It supports passing data to templates and
- * handling layout rendering.
- * 
- * @package Objectiveweb\Router
+ * Template class for rendering PHP templates with optional layouts.
  */
-class Template {
-
-    /**
-     * Template constructor
-     *
-     * @param string $_root Template root directory
-     * @param string $template Path to the template file
-     * @param array $data Data to be passed to the template
-     * @param string|null $layout Layout file name (without extension)
-     */
-    function __construct(private $_root, private string $_template, private array $_data = [], private string|null $_layout = null) {
-
+class Template
+{
+    public function __construct(
+        private string $_root,
+        private string $_template,
+        private array $_data = [],
+        private ?string $_layout = null
+    ) {
         $this->_template = $this->_root . DIRECTORY_SEPARATOR . $_template . '.php';
 
         if (!is_readable($this->_template)) {
@@ -31,43 +21,51 @@ class Template {
     }
 
     /**
-     * Render the template and return the output
-     * 
-     * This method renders the template file, optionally applies a layout,
-     * and returns the final rendered content.
-     * 
-     * @return string The rendered template content
-     * @throws \Exception If the template file cannot be read
+     * Render the template and optional layout.
+     *
+     * @throws \Throwable If template or layout execution fails.
      */
-    function render() {
+    public function render(): string
+    {
+        $_contents = $this->renderFile($this->_template, $this->_data);
 
-        if (is_array($this->_data)) {
-            extract($this->_data);
+        if ($this->_layout === null) {
+            return $_contents;
         }
+
+        $layout = $this->_root . '/_layouts/' . $this->_layout . '.php';
+        if (!is_readable($layout)) {
+            throw new \Exception("Cannot read $this->_layout", 500);
+        }
+
+        return $this->renderFile(
+            $layout,
+            [
+                ...$this->_data,
+                '_contents' => $_contents,
+            ]
+        );
+    }
+
+    /**
+     * Render one PHP file with an isolated output buffer.
+     *
+     * Template data cannot overwrite local renderer variables.
+     */
+    private function renderFile(string $file, array $data): string
+    {
+        extract($data, EXTR_SKIP);
 
         ob_start();
 
-        include $this->_template;
+        try {
+            include $file;
 
-        $_contents = ob_get_contents();
+            return (string) ob_get_clean();
+        } catch (\Throwable $exception) {
+            ob_end_clean();
 
-        ob_end_clean();
-
-        if($this->_layout) {
-            if(is_readable($this->_root . '/_layouts/' . $this->_layout . '.php')) {
-
-                ob_start();
-                include $this->_root . '/_layouts/' . $this->_layout . '.php';
-
-                $_contents = ob_get_contents();
-                ob_end_clean();
-            }
-            else {
-                throw new \Exception("Cannot read $this->_layout", 500);
-            }
-
+            throw $exception;
         }
-
-        return $_contents;
     }
 }
