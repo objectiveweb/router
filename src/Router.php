@@ -662,24 +662,18 @@ class Router
     }
 
     /**
-     * Constructs an URL for a given path
-     *  - If the given url is external or exists as a file on disk, return that file's url
-     *  - If the file does not exist, construct a url based on the current script + path info
-     *  - If portions of the path exist, treat the rest as parameters (point to another controller)
+     * Construct a URL for the current request or for a path relative to the
+     * current script.
      *
-     * If the given path is NULL, returns the current url with protocol, port and so on
-     *
-     * Examples
-     *  url('css/style.css'); returns '/some_root/my_application/css/style.css'
-     *  url('1'); returns '/some_root/my_application/controller.php/1' (if we ran that command from controller.php)
-     *  url('othercontroller.php/1/2'); returns '/some_root/my_application/othercontroller.php/1/2' (if othercontroller.php exists)
-     *
-     * @param $str
-     * @return string
+     * NULL, an empty string, and "self" return the absolute current URL,
+     * including the request scheme, host, non-default port, and script URL.
+     * Other values are appended to the current script directory. When both
+     * SCRIPT_URL and PATH_INFO are available, PATH_INFO is removed from
+     * SCRIPT_URL so generated paths remain anchored to the front controller.
      */
     public function url(?string $str = null): string
     {
-        if ($str === 'self' || empty($str)) {
+        if ($str === 'self' || $str === null || $str === '') {
             $trustedProxy = $this->isTrustedProxy($_SERVER['REMOTE_ADDR'] ?? '');
 
             $protocol = $this->requestProtocol();
@@ -892,7 +886,11 @@ class Router
             if (preg_match('/^(\[[0-9a-fA-F:.]+\])(?::([0-9]+))?$/', $hostHeader, $matches)) {
                 return [
                     $matches[1],
-                    isset($matches[2]) ? (int) $matches[2] : null,
+                    isset($matches[2])
+                        && (int) $matches[2] >= 1
+                        && (int) $matches[2] <= 65535
+                            ? (int) $matches[2]
+                            : null,
                 ];
             }
 

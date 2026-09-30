@@ -175,4 +175,73 @@ class UrlTest extends TestCase
             'trusted.proxies' => ['10.0.0.0/99'],
         ]);
     }
+
+    public function testRelativeUrlsUseScriptDirectoryInSubdirectory(): void
+    {
+        $_SERVER['SCRIPT_NAME'] = '/apps/router/index.php';
+        $_SERVER['PHP_SELF'] = '/apps/router/index.php';
+
+        $router = new Router();
+
+        $this->assertSame(
+            'http://internal.example:8080/apps/router/index.php',
+            $router->url()
+        );
+        $this->assertSame('/apps/router/assets/app.css', $router->url('assets/app.css'));
+        $this->assertSame('/apps/router/assets/app.css', $router->url('/assets/app.css'));
+    }
+
+    public function testScriptUrlAndPathInfoKeepGeneratedUrlsAnchoredToFrontController(): void
+    {
+        $_SERVER['SCRIPT_NAME'] = '/apps/router/index.php';
+        $_SERVER['PHP_SELF'] = '/apps/router/index.php/products/42';
+        $_SERVER['SCRIPT_URL'] = '/apps/router/index.php/products/42';
+        $_SERVER['PATH_INFO'] = '/products/42';
+
+        $router = new Router();
+
+        $this->assertSame(
+            'http://internal.example:8080/apps/router/index.php/products/42',
+            $router->url()
+        );
+        $this->assertSame('/apps/router/index.php/edit', $router->url('edit'));
+    }
+
+    public function testZeroIsAValidRelativeUrlPath(): void
+    {
+        $router = new Router();
+
+        $this->assertSame('/0', $router->url('0'));
+    }
+
+    public function testBracketedIpv6HostWithPort(): void
+    {
+        $_SERVER['HTTP_HOST'] = '[2001:db8::10]:8443';
+        $_SERVER['SERVER_NAME'] = '2001:db8::10';
+        $_SERVER['SERVER_PORT'] = '8443';
+
+        $router = new Router();
+
+        $this->assertSame(
+            'http://[2001:db8::10]:8443/index.php',
+            $router->url()
+        );
+    }
+
+    public function testTrustedForwardedBracketedIpv6HostWithPort(): void
+    {
+        $_SERVER['REMOTE_ADDR'] = '10.0.0.12';
+        $_SERVER['HTTP_X_FORWARDED_PROTO'] = 'https';
+        $_SERVER['HTTP_X_FORWARDED_HOST'] = '[2001:db8:99::20]:8443';
+
+        $router = new Router(null, [
+            'trusted.proxies' => ['10.0.0.0/8'],
+        ]);
+
+        $this->assertSame(
+            'https://[2001:db8:99::20]:8443/index.php',
+            $router->url()
+        );
+    }
+
 }
