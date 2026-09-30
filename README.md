@@ -140,6 +140,8 @@ class ProductsController
 
 See [middleware documentation](docs/middleware.md) for ordering and override rules.
 
+Middleware may reject a request by throwing an HTTP exception, or terminate immediately with `Router::respond()`, `Router::redirect()`, or `exit()`. Hard termination skips the controller, remaining middleware, and all `after()` hooks.
+
 ## Dependency injection
 
 Router composes Objectiveweb Dice and exposes \`addRule()\` and \`create()\` as its supported DI API.
