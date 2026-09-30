@@ -3,6 +3,7 @@
 namespace Objectiveweb;
 
 use JMS\Serializer\SerializationContext;
+use Objectiveweb\Router\CorsMiddleware;
 use Objectiveweb\Router\Middleware;
 use Objectiveweb\Router\Template;
 
@@ -11,8 +12,8 @@ class Router
 
     private static $serializers = [];
 
-    private $cors = null;
     private \Dice\Dice $dice;
+    private array $requestMiddlewares = [];
 
     function __construct(?string $_root = null, private array $config = [])
     {
@@ -30,17 +31,46 @@ class Router
         }
 
         $defaults = [
+            'request.middlewares' => [],
             'middlewares' => [],
             'template.root' => $_root . '/templates',
             'template.layout' => null,
         ];
 
         $this->config = array_merge($defaults, $config);
+
+        foreach ($this->config['request.middlewares'] as $class => $args) {
+            if (is_int($class)) {
+                if (!is_string($args)) {
+                    throw new \InvalidArgumentException(
+                        'List-style request middleware definitions must be class names'
+                    );
+                }
+
+                $this->addRequestMiddleware($args);
+                continue;
+            }
+
+            $this->addRequestMiddleware($class, $args);
+        }
     }
 
-    function setCors($cors)
+    public function setCors(string $origin): void
     {
-        $this->cors = $cors;
+        $this->requestMiddlewares = array_values(array_filter(
+            $this->requestMiddlewares,
+            static fn (array $definition): bool => $definition['class'] !== CorsMiddleware::class
+        ));
+
+        $this->addRequestMiddleware(CorsMiddleware::class, [$origin]);
+    }
+
+    public function addRequestMiddleware(string $class, array $args = []): void
+    {
+        $this->requestMiddlewares[] = [
+            'class' => $class,
+            'args' => $args,
+        ];
     }
 
     static function addSerializer($type, $callback)
@@ -149,10 +179,29 @@ class Router
 
         array_shift($params);
 
-        // Route execution is the HTTP error boundary. Callback resolution,
-        // dependency injection, request argument preparation, invocation and
-        // response preparation can all raise PHP Errors or Exceptions.
+        // Route execution is the HTTP error boundary. Request middleware,
+        // callback resolution, dependency injection, request argument preparation,
+        // invocation and response preparation can all raise PHP Errors or Exceptions.
         try {
+            $requestMiddlewares = [];
+            $method = (string) $_SERVER['REQUEST_METHOD'];
+            $path = (string) $_SERVER['PATH_INFO'];
+
+            // Request middleware wraps the entire matched route. before() runs
+            // in declaration order and after() unwinds in reverse order.
+            foreach ($this->requestMiddlewares as $definition) {
+                $middleware = $this->create(
+                    $definition['class'],
+                    $definition['args']
+                );
+
+                if (method_exists($middleware, 'before')) {
+                    $middleware->before($method, $path);
+                }
+
+                $requestMiddlewares[] = $middleware;
+            }
+
             // A [ClassName::class, 'method'] callback is resolved through Dice.
             if (is_array($callback) && is_string($callback[0])) {
                 $callback[0] = $this->create($callback[0], $params);
@@ -181,6 +230,13 @@ class Router
             $params = array_merge($params, $extraArgs);
 
             $response = call_user_func_array($callback, $params);
+
+            foreach (array_reverse($requestMiddlewares) as $middleware) {
+                if (method_exists($middleware, 'after')) {
+                    $response = $middleware->after($method, $path, $response);
+                }
+            }
+
             if ($response !== NULL) {
                 static::respond($response);
             }
@@ -276,27 +332,7 @@ class Router
             }
 
             if (!is_callable(array($controller, $fn))) {
-                // TODO move to Middleware
-                if ($this->cors && $fn == 'options'
-                    && isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_METHOD'])
-                    && isset($_SERVER['HTTP_ORIGIN'])) {
-
-                    header("Access-Control-Allow-Origin: $this->cors");
-                    header("Access-Control-Allow-Credentials: true");
-                    header("Access-Control-Allow-Methods: GET, PATCH, POST, PUT, DELETE, OPTIONS");
-                    if (isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']))
-                        header("Access-Control-Allow-Headers: {$_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']}");
-
-                    exit("");
-                }
-
                 throw new \Exception(sprintf(_("%s\\%s: Route not found"), get_class($controller), $fn), 404);
-            }
-
-            if ($this->cors) {
-                header("Access-Control-Allow-Origin: $this->cors");
-                header("Access-Control-Allow-Credentials: true");
-                header("Access-Control-Expose-Headers: content-range");
             }
 
             $refClass = new \ReflectionClass($controller);

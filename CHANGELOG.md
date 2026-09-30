@@ -19,6 +19,8 @@ All notable changes to Objectiveweb Router are documented in this file.
 
 ### Added
 
+- DI-backed global request middleware with declaration-order `before()` hooks and reverse-order `after()` unwinding around matched routes.
+- Built-in `CorsMiddleware` for global CORS headers and terminating OPTIONS preflight requests.
 - GitHub Actions CI for PHP 8.1 through 8.5.
 - Dedicated release verification workflow for version tags.
 - Repeatable middleware execution with reverse-order `after()` unwinding.
@@ -27,6 +29,7 @@ All notable changes to Objectiveweb Router are documented in this file.
 
 ### Changed
 
+- `setCors()` now registers the built-in request-level `CorsMiddleware`; controller-specific CORS branching has been removed.
 - GitHub Actions workflows now use `actions/checkout@v7`, removing the deprecated Node 20 action runtime warning.
 - Test execution now fails on PHP/PHPUnit deprecations so the supported PHP matrix remains deprecation-clean.
 - Response negotiation now honors `Accept` media ranges, q-values, wildcards, and q=0 exclusions; HTML/JSON responses use explicit content types and unsupported requests receive 406.

@@ -140,6 +140,40 @@ class ProductsController
 
 See [middleware documentation](docs/middleware.md) for ordering and override rules.
 
+### Global request middleware
+
+Request middleware wraps any matched route before callback/controller resolution and is constructed through the same Dice container as controllers:
+
+```php
+$router = new Router(null, [
+    'request.middlewares' => [
+        RequestIdMiddleware::class => [],
+    ],
+]);
+
+$router->addRequestMiddleware(TracingMiddleware::class, ['http']);
+```
+
+Request middleware `before(string $method, string $path)` hooks run in declaration order. After the callback/controller completes, `after(string $method, string $path, mixed $response)` hooks run in reverse order and may transform the response. Hooks are optional when the class does not implement `RequestMiddlewareInterface`.
+
+The built-in CORS middleware can be enabled with the compatibility helper:
+
+```php
+$router->setCors('https://app.example');
+```
+
+or registered/configured directly:
+
+```php
+use Objectiveweb\Router\CorsMiddleware;
+
+$router->addRequestMiddleware(CorsMiddleware::class, [
+    'https://app.example',
+]);
+```
+
+CORS preflight requests terminate before controller resolution.
+
 Middleware may reject a request by throwing an HTTP exception, or terminate immediately with `Router::respond()`, `Router::redirect()`, or `exit()`. Hard termination skips the controller, remaining middleware, and all `after()` hooks.
 
 ## Dependency injection

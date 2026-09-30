@@ -63,6 +63,98 @@ class ProductsController
 
 Arguments after the middleware class name are passed to the middleware constructor through Dice.
 
+## Global request middleware
+
+Request middleware is application-wide middleware around a matched route. It runs before callback or controller resolution, so it is appropriate for concerns that are not tied to a controller method, such as CORS, tracing, request IDs, and global response decoration.
+
+Request middleware is constructed through the Router's Dice container.
+
+```php
+use Objectiveweb\Router\RequestMiddlewareInterface;
+
+class TracingMiddleware implements RequestMiddlewareInterface
+{
+    public function before(string $method, string $path): void
+    {
+        // Start request-level work.
+    }
+
+    public function after(
+        string $method,
+        string $path,
+        mixed $response
+    ): mixed {
+        // Finish request-level work or transform the response.
+        return $response;
+    }
+}
+```
+
+Register request middleware through constructor configuration:
+
+```php
+$router = new \Objectiveweb\Router(null, [
+    'request.middlewares' => [
+        TracingMiddleware::class => ['http'],
+    ],
+]);
+```
+
+or append definitions explicitly:
+
+```php
+$router->addRequestMiddleware(TracingMiddleware::class, ['http']);
+```
+
+Constructor arguments are passed to Dice through `Router::create()`, so normal DI rules and shared dependencies continue to work.
+
+For a matched controller request, execution order is:
+
+1. Request middleware `before()` hooks in declaration order.
+2. Controller middleware `before()` hooks in declaration order.
+3. Controller method.
+4. Controller middleware `after()` hooks in reverse order.
+5. Request middleware `after()` hooks in reverse order.
+6. `Router::respond()`.
+
+If the callback/controller throws, request middleware `after()` hooks are not run; the Throwable is handled by Router's normal error boundary. Hard termination through `respond()`, `redirect()`, or `exit()` also skips remaining hooks.
+
+A class may provide only `before()` or only `after()`; Router checks for each hook before invoking it. Implement `RequestMiddlewareInterface` when both hooks are provided.
+
+### CORS
+
+`Objectiveweb\Router\CorsMiddleware` is a built-in request middleware. The existing convenience API now registers this middleware rather than using controller-specific CORS logic:
+
+```php
+$router->setCors('https://app.example');
+```
+
+Equivalent explicit registration:
+
+```php
+$router->addRequestMiddleware(
+    \Objectiveweb\Router\CorsMiddleware::class,
+    ['https://app.example']
+);
+```
+
+CORS headers are emitted before controller resolution, so they also apply to controller errors. An OPTIONS request carrying both `Origin` and `Access-Control-Request-Method` is treated as a CORS preflight, receives the configured CORS headers, and terminates with HTTP 204 before controller resolution.
+
+The CORS middleware constructor also accepts optional credentials, allowed methods, allowed request headers, and exposed response headers:
+
+```php
+$router->addRequestMiddleware(
+    \Objectiveweb\Router\CorsMiddleware::class,
+    [
+        'https://app.example',
+        true,
+        ['GET', 'POST', 'OPTIONS'],
+        ['Authorization', 'Content-Type'],
+        ['content-range'],
+    ]
+);
+```
+
 ## Execution order
 
 Middleware definitions are combined in this precedence order:
