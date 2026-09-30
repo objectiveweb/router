@@ -200,6 +200,38 @@ class ErrorBoundaryTest extends TestCase
         $this->assertSame(400, $response_code);
     }
 
+    public function testServerErrorLogsOriginalThrowableDetails(): void
+    {
+        $logFile = tempnam(sys_get_temp_dir(), 'objectiveweb-router-error-');
+        $previousLog = ini_get('error_log');
+
+        try {
+            ini_set('error_log', $logFile);
+
+            $_SERVER['PATH_INFO'] = '/logged-error';
+            $_SERVER['REQUEST_URI'] = '/logged-error';
+            $_SERVER['REDIRECT_URL'] = '/logged-error';
+
+            $this->router->GET('/logged-error', static function (): void {
+                throw new \RuntimeException('sensitive diagnostic detail');
+            });
+
+            $log = file_get_contents($logFile);
+
+            $this->assertStringContainsString(
+                \RuntimeException::class,
+                $log
+            );
+            $this->assertStringContainsString(
+                'sensitive diagnostic detail',
+                $log
+            );
+        } finally {
+            ini_set('error_log', $previousLog);
+            @unlink($logFile);
+        }
+    }
+
     public function testRouterDebugConfigurationPropagatesToResponsePipeline(): void
     {
         global $response_debug;
