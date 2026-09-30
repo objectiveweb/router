@@ -142,7 +142,7 @@ See [middleware documentation](docs/middleware.md) for ordering and override rul
 
 ### Global request middleware
 
-Request middleware wraps any matched route before callback/controller resolution and is constructed through the same Dice container as controllers:
+Request middleware wraps the incoming request and is constructed through the same Dice container as controllers. Its `before()` hooks run once before route matching begins:
 
 ```php
 $router = new Router(null, [
@@ -154,7 +154,7 @@ $router = new Router(null, [
 $router->addRequestMiddleware(TracingMiddleware::class, ['http']);
 ```
 
-Request middleware `before(string $method, string $path)` hooks run in declaration order. After the callback/controller completes, `after(string $method, string $path, mixed $response)` hooks run in reverse order and may transform the response. Hooks are optional when the class does not implement `RequestMiddlewareInterface`.
+Request middleware `before(string $method, string $path)` hooks run in declaration order. When a route produces a response, `after(string $method, string $path, mixed $response)` hooks run in reverse order and may transform that response. Hooks are optional when the class does not implement `RequestMiddlewareInterface`.
 
 The built-in CORS middleware can be enabled with the compatibility helper:
 

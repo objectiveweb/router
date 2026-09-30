@@ -19,7 +19,7 @@ All notable changes to Objectiveweb Router are documented in this file.
 
 ### Added
 
-- DI-backed global request middleware with declaration-order `before()` hooks and reverse-order `after()` unwinding around matched routes.
+- DI-backed global request middleware with declaration-order `before()` hooks before route matching and reverse-order `after()` unwinding when a route produces a response.
 - Built-in `CorsMiddleware` for global CORS headers and terminating OPTIONS preflight requests.
 - GitHub Actions CI for PHP 8.1 through 8.5.
 - Dedicated release verification workflow for version tags.
