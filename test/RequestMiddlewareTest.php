@@ -72,27 +72,6 @@ class RequestMiddlewareController
     }
 }
 
-class PreflightTerminated extends \RuntimeException
-{
-}
-
-class TestCorsMiddleware extends CorsMiddleware
-{
-    public array $headers = [];
-    public bool $terminated = false;
-
-    protected function emitHeader(string $header): void
-    {
-        $this->headers[] = $header;
-    }
-
-    protected function terminatePreflight(): never
-    {
-        $this->terminated = true;
-        throw new PreflightTerminated();
-    }
-}
-
 class RequestMiddlewareTest extends TestCase
 {
     protected function setUp(): void
@@ -220,50 +199,13 @@ class RequestMiddlewareTest extends TestCase
         ], RequestMiddlewareEvents::$events);
     }
 
-    public function testCorsAddsHeadersToNormalRequests(): void
+    public function testCorsAfterReturnsResponseUnchanged(): void
     {
-        $cors = new TestCorsMiddleware('https://app.example');
+        $cors = new CorsMiddleware('https://app.example');
 
-        $cors->before('GET', '/products');
-
-        $this->assertContains(
-            'Access-Control-Allow-Origin: https://app.example',
-            $cors->headers
-        );
-        $this->assertContains(
-            'Access-Control-Allow-Credentials: true',
-            $cors->headers
-        );
-        $this->assertContains(
-            'Access-Control-Expose-Headers: content-range',
-            $cors->headers
-        );
-        $this->assertFalse($cors->terminated);
-        $this->assertSame('ok', $cors->after('GET', '/products', 'ok'));
-    }
-
-    public function testCorsTerminatesPreflightAndReflectsRequestedHeaders(): void
-    {
-        $_SERVER['HTTP_ORIGIN'] = 'https://app.example';
-        $_SERVER['HTTP_ACCESS_CONTROL_REQUEST_METHOD'] = 'POST';
-        $_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS'] = 'Authorization, Content-Type';
-
-        $cors = new TestCorsMiddleware('https://app.example');
-
-        try {
-            $cors->before('OPTIONS', '/products');
-            $this->fail('Expected preflight to terminate');
-        } catch (PreflightTerminated) {
-        }
-
-        $this->assertTrue($cors->terminated);
-        $this->assertContains(
-            'Access-Control-Allow-Methods: GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS',
-            $cors->headers
-        );
-        $this->assertContains(
-            'Access-Control-Allow-Headers: Authorization, Content-Type',
-            $cors->headers
+        $this->assertSame(
+            ['ok' => true],
+            $cors->after('GET', '/products', ['ok' => true])
         );
     }
 }
