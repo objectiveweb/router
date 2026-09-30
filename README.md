@@ -179,11 +179,11 @@ The built-in CORS middleware can be enabled with the compatibility helper:
 
 ```php
 $router->setCors('https://app.example');
-
-For public wildcard CORS, `$router->setCors('*')` automatically disables credentials so Router never emits the invalid `Access-Control-Allow-Origin: *` + `Access-Control-Allow-Credentials: true` combination.
 ```
 
-or registered/configured directly:
+For public wildcard CORS, `$router->setCors('*')` automatically disables credentials so Router never emits the invalid `Access-Control-Allow-Origin: *` + `Access-Control-Allow-Credentials: true` combination.
+
+It can also be registered/configured directly:
 
 ```php
 use Objectiveweb\Router\CorsMiddleware;
