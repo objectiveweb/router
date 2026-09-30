@@ -8,6 +8,15 @@ use Test\Router;
 
 class SerializedServerException extends \RuntimeException {}
 
+class CustomSerializedResponse
+{
+    public function __construct(
+        public string $name,
+        public int $count
+    ) {
+    }
+}
+
 class ResponseNegotiationTest extends TestCase
 {
     public function testMissingAcceptUsesServerPreference(): void
@@ -198,6 +207,29 @@ class ResponseNegotiationTest extends TestCase
 
         $this->assertSame(406, $response['status']);
         $this->assertNull($response['content_type']);
+    }
+
+    public function testRegisteredSerializerProducesJsonThroughPrepareResponse(): void
+    {
+        Router::addSerializer(
+            CustomSerializedResponse::class,
+            static fn (CustomSerializedResponse $response): array => [
+                'label' => strtoupper($response->name),
+                'items' => $response->count,
+            ]
+        );
+
+        $response = Router::prepareResponseForTest(
+            new CustomSerializedResponse('widgets', 3),
+            'application/json'
+        );
+
+        $this->assertSame('application/json', $response['content_type']);
+        $this->assertSame(
+            '{"label":"WIDGETS","items":3}',
+            $response['body']
+        );
+        $this->assertTrue($response['vary_accept']);
     }
 
     public function testRegisteredExceptionSerializerIsNotRedacted(): void

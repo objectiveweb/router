@@ -5,6 +5,23 @@ require dirname(__DIR__, 2) . '/vendor/autoload.php';
 use Objectiveweb\Router;
 use Objectiveweb\Router\CorsMiddleware;
 
+class HttpCustomSerializedResponse
+{
+    public function __construct(
+        public string $name,
+        public int $version
+    ) {
+    }
+}
+
+Router::addSerializer(
+    HttpCustomSerializedResponse::class,
+    static fn (HttpCustomSerializedResponse $response): array => [
+        'resource' => $response->name,
+        'version' => $response->version,
+    ]
+);
+
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 
 // The built-in server invokes this file as its router script. Normalize the
@@ -73,6 +90,10 @@ $router->GET('/routing-order', static function (array $query): string {
 
 $router->GET('/negotiate', static function (array $query): string {
     return '<p>Hello</p>';
+});
+
+$router->GET('/custom-serializer', static function (array $query): HttpCustomSerializedResponse {
+    return new HttpCustomSerializedResponse('router', 3);
 });
 
 $router->GET('/head', static function (array $query): string {

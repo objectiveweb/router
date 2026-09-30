@@ -111,6 +111,24 @@ class HttpIntegrationTest extends TestCase
         $this->assertSame('"<p>Hello<\/p>"', $response['body']);
     }
 
+    public function testRegisteredSerializerEmitsCustomJsonAtHttpBoundary(): void
+    {
+        $response = $this->request('GET', '/custom-serializer', [
+            'Accept' => 'application/json',
+        ]);
+
+        $this->assertSame(200, $response['status']);
+        $this->assertHeaderContains(
+            $response,
+            'content-type',
+            'application/json; charset=utf-8'
+        );
+        $this->assertSame(
+            '{"resource":"router","version":3}',
+            $response['body']
+        );
+    }
+
     public function testUnsupportedAcceptEmits406AndEmptyBody(): void
     {
         $response = $this->request('GET', '/negotiate', [
