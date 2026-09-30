@@ -9,6 +9,7 @@ All notable changes to Objectiveweb Router are documented in this file.
 - Remove the legacy static `Router::render()` helper; PHP templates are represented by `Template` objects created through `$router->template()` or controller template lookup.
 - Controller template directories no longer auto-include `_functions.php`; application helpers must be loaded explicitly by the application/bootstrap or provided through template objects/data.
 - `url()` and `redirect()` are now Router instance methods so URL generation can use per-router trusted-proxy configuration.
+- Direct `HTTP_HOST` is no longer trusted by default for absolute URL generation; configure `trusted.hosts` explicitly or use `'*'` to retain unrestricted host behavior.
 - `create()` no longer exposes Dice's internal third `share` argument; the supported Router DI API is `create(string $name, array $args = []): object`.
 - Require PHP 8.1 or newer.
 - Router now composes Dice instead of extending it. Dependency injection remains available through `addRule()` and `create()`, but inherited Dice methods are no longer part of the Router API.
@@ -24,6 +25,7 @@ All notable changes to Objectiveweb Router are documented in this file.
 
 - Routing regression coverage for raw regex captures, route extra arguments, controller regex constructor captures, immediate first-match dispatch/no-match behavior, DELETE, controller PATCH, OPTIONS method-specific actions, and custom HTTP-method actions.
 - Explicit `trusted.proxies` IP/CIDR policy for `X-Forwarded-Proto`, `X-Forwarded-Host`, and `X-Forwarded-Port`.
+- Explicit `trusted.hosts` allowlist for direct `HTTP_HOST` values, with `'*'` as an opt-in wildcard.
 - `Template::url()` delegates to the owning Router for proxy-aware URL generation inside PHP templates.
 - `PATCH()` route helper with the same Content-Type-aware request-body handling as POST and PUT.
 - Automatic HEAD fallback for `GET()` helpers and controller GET actions.

@@ -176,6 +176,93 @@ class UrlTest extends TestCase
         ]);
     }
 
+
+    public function testDirectHttpHostIsIgnoredByDefault(): void
+    {
+        $_SERVER['HTTP_HOST'] = 'attacker.example:9999';
+
+        $router = new Router();
+
+        $this->assertSame(
+            'http://internal.example:8080/index.php',
+            $router->url()
+        );
+    }
+
+    public function testTrustedHostAllowsDirectHttpHost(): void
+    {
+        $_SERVER['HTTP_HOST'] = 'public.example:8443';
+
+        $router = new Router(null, [
+            'trusted.hosts' => ['public.example'],
+        ]);
+
+        $this->assertSame(
+            'http://public.example:8443/index.php',
+            $router->url()
+        );
+    }
+
+    public function testTrustedHostsMatchCaseInsensitivelyAndIgnoreTrailingDot(): void
+    {
+        $_SERVER['HTTP_HOST'] = 'PUBLIC.EXAMPLE.:8443';
+
+        $router = new Router(null, [
+            'trusted.hosts' => ['public.example'],
+        ]);
+
+        $this->assertSame(
+            'http://PUBLIC.EXAMPLE.:8443/index.php',
+            $router->url()
+        );
+    }
+
+    public function testWildcardTrustedHostsAllowsAnyValidDirectHttpHost(): void
+    {
+        $_SERVER['HTTP_HOST'] = 'tenant.example:8443';
+
+        $router = new Router(null, [
+            'trusted.hosts' => '*',
+        ]);
+
+        $this->assertSame(
+            'http://tenant.example:8443/index.php',
+            $router->url()
+        );
+    }
+
+    public function testWildcardTrustedHostsStillRejectsMalformedHost(): void
+    {
+        $_SERVER['HTTP_HOST'] = 'user@attacker.example';
+
+        $router = new Router(null, [
+            'trusted.hosts' => '*',
+        ]);
+
+        $this->assertSame(
+            'http://internal.example:8080/index.php',
+            $router->url()
+        );
+    }
+
+    public function testTrustedHostsConfigurationRejectsInvalidType(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        new Router(null, [
+            'trusted.hosts' => 'example.com',
+        ]);
+    }
+
+    public function testTrustedHostsConfigurationRejectsPorts(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        new Router(null, [
+            'trusted.hosts' => ['example.com:8443'],
+        ]);
+    }
+
     public function testRelativeUrlsUseScriptDirectoryInSubdirectory(): void
     {
         $_SERVER['SCRIPT_NAME'] = '/apps/router/index.php';
@@ -220,7 +307,9 @@ class UrlTest extends TestCase
         $_SERVER['SERVER_NAME'] = '2001:db8::10';
         $_SERVER['SERVER_PORT'] = '8443';
 
-        $router = new Router();
+        $router = new Router(null, [
+            'trusted.hosts' => ['2001:db8::10'],
+        ]);
 
         $this->assertSame(
             'http://[2001:db8::10]:8443/index.php',

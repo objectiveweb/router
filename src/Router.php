@@ -37,6 +37,7 @@ class Router
             'request.middlewares' => [],
             'middlewares' => [],
             'trusted.proxies' => [],
+            'trusted.hosts' => [],
             'template.root' => $_root . '/templates',
             'template.layout' => null,
         ];
@@ -56,6 +57,27 @@ class Router
                 throw new \InvalidArgumentException(
                     sprintf('Invalid trusted proxy address or CIDR: %s', is_scalar($proxy) ? (string) $proxy : get_debug_type($proxy))
                 );
+            }
+        }
+
+        if ($this->config['trusted.hosts'] !== '*' && !is_array($this->config['trusted.hosts'])) {
+            throw new \InvalidArgumentException('trusted.hosts must be an array or "*"');
+        }
+
+        if (is_array($this->config['trusted.hosts'])) {
+            foreach ($this->config['trusted.hosts'] as $host) {
+                if (
+                    !is_string($host)
+                    || !static::isValidHostHeader($host)
+                    || static::splitHostAndPort($host)[1] !== null
+                ) {
+                    throw new \InvalidArgumentException(
+                        sprintf(
+                            'Invalid trusted host: %s',
+                            is_scalar($host) ? (string) $host : get_debug_type($host)
+                        )
+                    );
+                }
             }
         }
 
@@ -677,8 +699,13 @@ class Router
             $trustedProxy = $this->isTrustedProxy($_SERVER['REMOTE_ADDR'] ?? '');
 
             $protocol = $this->requestProtocol();
-            $hostHeader = $_SERVER['HTTP_HOST'] ?? ($_SERVER['SERVER_NAME'] ?? 'localhost');
+            $hostHeader = $_SERVER['SERVER_NAME'] ?? 'localhost';
             $port = isset($_SERVER['SERVER_PORT']) ? (int) $_SERVER['SERVER_PORT'] : null;
+
+            $directHost = $_SERVER['HTTP_HOST'] ?? null;
+            if (is_string($directHost) && $this->isTrustedHost($directHost)) {
+                $hostHeader = $directHost;
+            }
 
             $forwardedProto = null;
             $forwardedHost = null;
@@ -750,6 +777,44 @@ class Router
         }
 
         return ($path === '/' ? '' : $path) . ($str[0] === '/' ? $str : '/' . $str);
+    }
+
+    private function isTrustedHost(string $hostHeader): bool
+    {
+        if (!static::isValidHostHeader($hostHeader)) {
+            return false;
+        }
+
+        if ($this->config['trusted.hosts'] === '*') {
+            return true;
+        }
+
+        [$host] = static::splitHostAndPort($hostHeader);
+        $host = static::normalizeHostForComparison($host);
+
+        foreach ($this->config['trusted.hosts'] as $trustedHost) {
+            [$candidate] = static::splitHostAndPort($trustedHost);
+
+            if ($host === static::normalizeHostForComparison($candidate)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function normalizeHostForComparison(string $host): string
+    {
+        if (str_starts_with($host, '[') && str_ends_with($host, ']')) {
+            $host = substr($host, 1, -1);
+        }
+
+        $packed = @inet_pton($host);
+        if ($packed !== false) {
+            return bin2hex($packed);
+        }
+
+        return strtolower(rtrim($host, '.'));
     }
 
     private function requestProtocol(): string

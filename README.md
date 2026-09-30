@@ -232,14 +232,28 @@ class ProductsController
 $router->controller('/products', ProductsController::class);
 ```
 
-## Trusted proxies and URL generation
+## Trusted hosts, proxies, and URL generation
 
 `$router->url()` and `$router->redirect()` are instance methods because absolute URL generation depends on Router configuration.
 
-Forwarded headers are ignored by default. Configure the exact proxy addresses or CIDR ranges that are allowed to supply external request metadata:
+Direct `HTTP_HOST` values are ignored by default. Configure the hostnames that are allowed to affect absolute URL generation:
 
 ```php
 $router = new Router(null, [
+    'trusted.hosts' => [
+        'example.com',
+        'api.example.com',
+    ],
+]);
+```
+
+Trusted host entries are hostnames only; request ports are matched independently. Matching is case-insensitive, ignores a trailing DNS dot, and normalizes IP literals. Set `'trusted.hosts' => '*'` to accept any syntactically valid direct `HTTP_HOST`. When a direct host is not trusted, Router falls back to `SERVER_NAME` and `SERVER_PORT`.
+
+Forwarded headers are also ignored by default. Configure the exact proxy addresses or CIDR ranges that are allowed to supply external request metadata:
+
+```php
+$router = new Router(null, [
+    'trusted.hosts' => ['example.com'],
     'trusted.proxies' => [
         '127.0.0.1',
         '10.42.0.0/16',
@@ -248,13 +262,11 @@ $router = new Router(null, [
 ]);
 ```
 
-Only when `REMOTE_ADDR` matches one of these entries can `X-Forwarded-Proto`, `X-Forwarded-Host`, and `X-Forwarded-Port` affect `url('self')` / `url()`. Otherwise Router uses the direct `HTTPS`, `HTTP_HOST`, and `SERVER_PORT` values.
+Only when `REMOTE_ADDR` matches one of these proxy entries can `X-Forwarded-Proto`, `X-Forwarded-Host`, and `X-Forwarded-Port` affect `url('self')` / `url()`. Forwarded host values are validated separately and do not need to appear in `trusted.hosts`.
 
 Objectiveweb Router intentionally does not interpret comma-separated proxy chains. A trusted proxy is expected to remove client-supplied forwarding headers and write one authoritative value. Comma-separated or malformed forwarded values are ignored.
 
 Private address ranges are not trusted automatically. Add only the actual proxy/network ranges controlled by the application infrastructure.
-
-This policy protects forwarded metadata; it does not validate the direct HTTP `Host` header. Applications that generate security-sensitive absolute links should also enforce allowed hosts at the web server/proxy layer.
 
 ## Templates
 
