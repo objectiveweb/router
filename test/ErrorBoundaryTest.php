@@ -36,9 +36,10 @@ class ErrorBoundaryTest extends TestCase
         $_SERVER['REDIRECT_URL'] = '/';
         unset($_SERVER['HTTP_ACCEPT']);
 
-        global $response_value, $response_code;
+        global $response_value, $response_code, $response_debug;
         $response_value = null;
         $response_code = null;
+        $response_debug = null;
     }
 
     public function testTypeErrorIsCapturedAsInternalServerError(): void
@@ -199,11 +200,37 @@ class ErrorBoundaryTest extends TestCase
         $this->assertSame(400, $response_code);
     }
 
+    public function testRouterDebugConfigurationPropagatesToResponsePipeline(): void
+    {
+        global $response_debug;
+
+        $router = new Router(null, ['debug' => true]);
+
+        $_SERVER['PATH_INFO'] = '/debug';
+        $_SERVER['REQUEST_URI'] = '/debug';
+        $_SERVER['REDIRECT_URL'] = '/debug';
+
+        $router->GET('/debug', static function (): void {
+            throw new \RuntimeException('debug detail');
+        });
+
+        $this->assertTrue($response_debug);
+    }
+
+    public function testDebugConfigurationMustBeBoolean(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        new Router(null, ['debug' => 'yes']);
+    }
+
     public function testThrowableUsesStandardErrorEnvelope(): void
     {
         $response = Router::prepareResponseForTest(
             new \TypeError('Bad argument'),
-            'application/json'
+            'application/json',
+            500,
+            true
         );
 
         $this->assertSame('application/json', $response['content_type']);

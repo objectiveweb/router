@@ -33,6 +33,7 @@ class Router
         }
 
         $defaults = [
+            'debug' => false,
             'request.middlewares' => [],
             'middlewares' => [],
             'trusted.proxies' => [],
@@ -41,6 +42,10 @@ class Router
         ];
 
         $this->config = array_merge($defaults, $config);
+
+        if (!is_bool($this->config['debug'])) {
+            throw new \InvalidArgumentException('debug must be a boolean');
+        }
 
         if (!is_array($this->config['trusted.proxies'])) {
             throw new \InvalidArgumentException('trusted.proxies must be an array');
@@ -279,7 +284,7 @@ class Router
 
             if ($response !== NULL) {
                 $response = $this->finishRequestMiddlewares($method, $path, $response);
-                static::respond($response);
+                static::respond($response, 200, $this->config['debug']);
             }
         } catch (\Throwable $ex) {
             $status = (int) $ex->getCode();
@@ -291,7 +296,7 @@ class Router
                 error_log(get_class($ex) . ' ' . $ex->getMessage() . " @ " . $ex->getTraceAsString());
             }
 
-            static::respond($ex, $status);
+            static::respond($ex, $status, $this->config['debug']);
         }
     }
 
@@ -1078,7 +1083,12 @@ class Router
      *
      * @return array{body:string, content_type:?string, vary_accept:bool}
      */
-    protected static function prepareResponse(mixed $content, ?string $accept = null): array
+    protected static function prepareResponse(
+        mixed $content,
+        ?string $accept = null,
+        ?int $status = null,
+        bool $debug = false
+    ): array
     {
         if ($content instanceof \Throwable && !self::hasSerializer(get_class($content))) {
             $contentType = static::negotiateContentType(
@@ -1094,7 +1104,17 @@ class Router
                 ];
             }
 
+            $redact = !$debug && $status !== null && $status >= 500;
+
             if ($contentType === 'text/html') {
+                if ($redact) {
+                    return [
+                        'body' => '<!doctype html><html><body><h1>Internal Server Error</h1></body></html>',
+                        'content_type' => 'text/html',
+                        'vary_accept' => true,
+                    ];
+                }
+
                 $exception = htmlspecialchars(
                     get_class($content),
                     ENT_QUOTES | ENT_SUBSTITUTE,
@@ -1113,6 +1133,16 @@ class Router
                         $message
                     ),
                     'content_type' => 'text/html',
+                    'vary_accept' => true,
+                ];
+            }
+
+            if ($redact) {
+                return [
+                    'body' => static::serializeJson([
+                        'message' => 'Internal Server Error',
+                    ]),
+                    'content_type' => 'application/json',
                     'vary_accept' => true,
                 ];
             }
@@ -1224,7 +1254,8 @@ class Router
         mixed $content,
         int $code = 200,
         ?string $accept = null,
-        ?string $requestMethod = null
+        ?string $requestMethod = null,
+        bool $debug = false
     ): array {
         // Informational responses, 204, 205 and 304 never carry a message body
         // and do not require representation negotiation.
@@ -1242,7 +1273,7 @@ class Router
             ];
         }
 
-        $response = static::prepareResponse($content, $accept);
+        $response = static::prepareResponse($content, $accept, $code, $debug);
         $status = $response['content_type'] === null ? 406 : $code;
 
         // HEAD selects the same representation as GET but never emits its body.
@@ -1256,13 +1287,17 @@ class Router
         ];
     }
 
-    public static function respond(mixed $content, int $code = 200)
-    {
+    public static function respond(
+        mixed $content,
+        int $code = 200,
+        bool $debug = false
+    ) {
         $response = static::prepareHttpResponse(
             $content,
             $code,
             $_SERVER['HTTP_ACCEPT'] ?? null,
-            $_SERVER['REQUEST_METHOD'] ?? null
+            $_SERVER['REQUEST_METHOD'] ?? null,
+            $debug
         );
 
         if ($response['vary_accept']) {

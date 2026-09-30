@@ -53,6 +53,7 @@ All notable changes to Objectiveweb Router are documented in this file.
 
 ### Fixed
 
+- Unhandled 5xx responses now redact exception class/message by default while preserving server-side logging; `debug => true` restores detailed development responses, 4xx details remain visible, and explicitly registered exception serializers are unchanged.
 - Template rendering now uses typed paths/return values, `EXTR_SKIP` variable extraction, protected layout contents, and exception-safe output-buffer cleanup.
 - Middleware instantiation no longer passes a synthetic string through Dice's internal `share` argument; repeated middleware remain distinct while normally configured shared dependencies are still reused.
 - Public README, controller/middleware documentation, and runnable examples now describe the v3 API and no longer reference legacy Dice includes or removed controller hooks.

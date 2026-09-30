@@ -6,6 +6,8 @@ require_once __DIR__ . '/TestableRouter.php';
 use PHPUnit\Framework\TestCase;
 use Test\Router;
 
+class SerializedServerException extends \RuntimeException {}
+
 class ResponseNegotiationTest extends TestCase
 {
     public function testMissingAcceptUsesServerPreference(): void
@@ -110,16 +112,50 @@ class ResponseNegotiationTest extends TestCase
         $this->assertTrue($response['vary_accept']);
     }
 
-    public function testThrowablePreserves500ForHtmlClient(): void
+    public function testThrowableRedacts500ForHtmlClientByDefault(): void
     {
         $response = Router::prepareHttpResponseForTest(
-            new \TypeError('Bad argument'),
+            new \TypeError('Database password: secret'),
             500,
             'text/html'
         );
 
         $this->assertSame(500, $response['status']);
         $this->assertSame('text/html', $response['content_type']);
+        $this->assertStringContainsString('Internal Server Error', $response['body']);
+        $this->assertStringNotContainsString('TypeError', $response['body']);
+        $this->assertStringNotContainsString('secret', $response['body']);
+    }
+
+    public function testThrowableRedacts500ForJsonClientByDefault(): void
+    {
+        $response = Router::prepareHttpResponseForTest(
+            new \RuntimeException('Database password: secret', 500),
+            500,
+            'application/json'
+        );
+
+        $body = json_decode($response['body'], true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame(500, $response['status']);
+        $this->assertSame('application/json', $response['content_type']);
+        $this->assertSame(['message' => 'Internal Server Error'], $body);
+    }
+
+    public function testDebugModeExposes500Details(): void
+    {
+        $response = Router::prepareHttpResponseForTest(
+            new \RuntimeException('Detailed failure', 500),
+            500,
+            'application/json',
+            null,
+            true
+        );
+
+        $body = json_decode($response['body'], true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame(\RuntimeException::class, $body['exception']);
+        $this->assertSame('Detailed failure', $body['message']);
     }
 
     public function testThrowablePreservesStatusForJsonClient(): void
@@ -138,12 +174,14 @@ class ResponseNegotiationTest extends TestCase
         $this->assertSame('Missing', $body['message']);
     }
 
-    public function testThrowableHtmlEscapesMessage(): void
+    public function testThrowableHtmlEscapesMessageInDebugMode(): void
     {
         $response = Router::prepareHttpResponseForTest(
             new \RuntimeException('<script>alert(1)</script>', 500),
             500,
-            'text/html'
+            'text/html',
+            null,
+            true
         );
 
         $this->assertStringNotContainsString('<script>', $response['body']);
@@ -160,6 +198,26 @@ class ResponseNegotiationTest extends TestCase
 
         $this->assertSame(406, $response['status']);
         $this->assertNull($response['content_type']);
+    }
+
+    public function testRegisteredExceptionSerializerIsNotRedacted(): void
+    {
+        Router::addSerializer(
+            SerializedServerException::class,
+            static fn (SerializedServerException $exception): array => [
+                'error' => $exception->getMessage(),
+            ]
+        );
+
+        $response = Router::prepareHttpResponseForTest(
+            new SerializedServerException('intentional detail', 500),
+            500,
+            'application/json'
+        );
+
+        $body = json_decode($response['body'], true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame(['error' => 'intentional detail'], $body);
     }
 
     public function testStructuredResponseRejectsHtmlOnlyRequest(): void

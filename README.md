@@ -279,6 +279,20 @@ $router = new Router(__DIR__, [
 ]);
 ```
 
+## Error disclosure
+
+Unhandled 5xx errors are redacted by default. Router logs the original Throwable, while clients receive only `Internal Server Error` in the negotiated HTML or JSON representation.
+
+For local development, detailed 5xx error responses can be enabled explicitly:
+
+```php
+$router = new Router(null, [
+    'debug' => true,
+]);
+```
+
+Debug mode exposes the exception class and message and should not be enabled in production. 4xx exception details remain visible by default, and exceptions with explicitly registered serializers continue to use those serializers.
+
 ## Response negotiation
 
 Router negotiates supported representations from `Accept`, including q-values, wildcards, and q=0 exclusions. `HEAD` uses the same representation selection as GET but never emits a body. Informational responses and statuses `204`, `205`, and `304` also never emit a body.
