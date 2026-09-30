@@ -202,12 +202,15 @@ Example hard termination:
 public function before(string $method, string $fn, array $params): array
 {
     if ($this->shouldRedirect()) {
-        $this->router->redirect('/login', 302);
+        header('Location: /login', true, 302);
+        exit('');
     }
 
     return $params;
 }
 ```
+
+If middleware already has access to the application Router instance, it may use `$router->redirect()` instead.
 
 A hard termination ends request processing immediately. The controller is not called, remaining middleware does not run, and `after()` hooks are not executed, including hooks from middleware whose `before()` already ran.
 

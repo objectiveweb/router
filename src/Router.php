@@ -872,9 +872,21 @@ class Router
 
     private static function isValidHostHeader(string $host): bool
     {
-        return $host !== ''
-            && !str_contains($host, ',')
-            && !preg_match('/[\s\x00-\x1f\x7f\/\\]/', $host);
+        if (
+            $host === ''
+            || str_contains($host, ',')
+            || preg_match('/[\s\x00-\x1f\x7f\/\\@?#]/', $host)
+        ) {
+            return false;
+        }
+
+        [$hostname] = static::splitHostAndPort($host);
+
+        if (str_starts_with($hostname, '[') && str_ends_with($hostname, ']')) {
+            return @inet_pton(substr($hostname, 1, -1)) !== false;
+        }
+
+        return preg_match('/^[A-Za-z0-9._-]+$/', $hostname) === 1;
     }
 
     /**

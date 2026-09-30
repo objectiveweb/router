@@ -137,6 +137,23 @@ class UrlTest extends TestCase
         );
     }
 
+    public function testUnsafeForwardedHostIsIgnored(): void
+    {
+        $_SERVER['REMOTE_ADDR'] = '10.0.0.12';
+        $_SERVER['HTTP_X_FORWARDED_PROTO'] = 'https';
+        $_SERVER['HTTP_X_FORWARDED_HOST'] = 'user@app.example';
+        $_SERVER['HTTP_X_FORWARDED_PORT'] = '443';
+
+        $router = new Router(null, [
+            'trusted.proxies' => ['10.0.0.0/8'],
+        ]);
+
+        $this->assertSame(
+            'https://internal.example/index.php',
+            $router->url()
+        );
+    }
+
     public function testForwardedSchemeWithoutPortUsesSchemeDefault(): void
     {
         $_SERVER['REMOTE_ADDR'] = '10.0.0.12';

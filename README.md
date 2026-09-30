@@ -224,7 +224,7 @@ $router->controller('/products', ProductsController::class);
 
 ## Trusted proxies and URL generation
 
-`Router::url()` and `$router->redirect()` are instance methods because absolute URL generation depends on Router configuration.
+`$router->url()` and `$router->redirect()` are instance methods because absolute URL generation depends on Router configuration.
 
 Forwarded headers are ignored by default. Configure the exact proxy addresses or CIDR ranges that are allowed to supply external request metadata:
 
