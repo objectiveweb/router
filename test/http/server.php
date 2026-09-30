@@ -19,6 +19,18 @@ $router = new Router(null, [
 
 $router->setCors('https://client.example');
 
+$router->GET('/does-not-match-routing-order', static function (array $query): never {
+    throw new RuntimeException('unmatched route executed');
+});
+
+$router->GET('/routing-order', static function (array $query): string {
+    return 'first';
+});
+
+$router->GET('/routing-order', static function (array $query): string {
+    return 'second';
+});
+
 $router->GET('/negotiate', static function (array $query): string {
     return '<p>Hello</p>';
 });

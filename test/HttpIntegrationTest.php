@@ -77,6 +77,16 @@ class HttpIntegrationTest extends TestCase
         @unlink(self::$stderrLog);
     }
 
+    public function testImmediateRoutingSkipsNoMatchAndStopsAtFirstMatch(): void
+    {
+        $response = $this->request('GET', '/routing-order', [
+            'Accept' => 'text/html',
+        ]);
+
+        $this->assertSame(200, $response['status']);
+        $this->assertSame('first', $response['body']);
+    }
+
     public function testHtmlNegotiationEmitsStatusContentTypeVaryAndBody(): void
     {
         $response = $this->request('GET', '/negotiate', [

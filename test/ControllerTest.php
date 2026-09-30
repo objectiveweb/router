@@ -33,6 +33,34 @@ class VariadicController
     }
 }
 
+class RoutingRegressionController
+{
+    public function patch(string $id, array $body): array
+    {
+        return [
+            'handler' => 'patch',
+            'id' => $id,
+            'body' => $body,
+        ];
+    }
+
+    public function optionsStatus(array $query): array
+    {
+        return [
+            'handler' => 'optionsStatus',
+            'query' => $query,
+        ];
+    }
+
+    public function status(array $query): array
+    {
+        return [
+            'handler' => 'status',
+            'query' => $query,
+        ];
+    }
+}
+
 class ControllerTest extends TestCase
 {
     private Router $app;
@@ -80,6 +108,29 @@ class ControllerTest extends TestCase
         $this->assertSame(2, $method->getNumberOfParameters());
         $this->assertSame(1, $method->getNumberOfRequiredParameters());
         $this->assertSame('object', (string) $method->getReturnType());
+    }
+
+    public function testRawRoutePassesRegexCapturesInOrder(): void
+    {
+        global $response_value;
+
+        $_SERVER['PATH_INFO'] = '/raw/books/42';
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REQUEST_URI'] = '/raw/books/42';
+        $_SERVER['REDIRECT_URL'] = '/raw/books/42';
+
+        $this->app->route(
+            'GET /raw/([a-z]+)/([0-9]+)',
+            static fn (string $category, string $id): array => [
+                'category' => $category,
+                'id' => $id,
+            ]
+        );
+
+        $this->assertSame([
+            'category' => 'books',
+            'id' => '42',
+        ], $response_value);
     }
 
     public function testRouteExplicitArgumentsFollowRegexCaptures(): void
@@ -130,6 +181,110 @@ class ControllerTest extends TestCase
             'account' => '42',
             'region' => 'us',
             'query' => ['active' => '1'],
+        ], $response_value);
+    }
+
+    public function testUnmatchedRouteDoesNotInvokeCallback(): void
+    {
+        global $response_value;
+
+        $called = false;
+
+        $_SERVER['PATH_INFO'] = '/actual';
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REQUEST_URI'] = '/actual';
+        $_SERVER['REDIRECT_URL'] = '/actual';
+
+        $this->app->route(
+            'GET /different',
+            static function () use (&$called): string {
+                $called = true;
+
+                return 'unexpected';
+            }
+        );
+
+        $this->assertFalse($called);
+        $this->assertNull($response_value);
+    }
+
+    public function testDeleteHelperDispatchesCapturesAndQuery(): void
+    {
+        global $response_value;
+
+        $_GET = ['force' => '1'];
+        $_SERVER['PATH_INFO'] = '/items/42';
+        $_SERVER['REQUEST_METHOD'] = 'DELETE';
+        $_SERVER['REQUEST_URI'] = '/items/42?force=1';
+        $_SERVER['REDIRECT_URL'] = '/items/42';
+
+        $this->app->DELETE(
+            '/items/([0-9]+)',
+            static fn (string $id, array $query): array => [
+                'id' => $id,
+                'query' => $query,
+            ]
+        );
+
+        $this->assertSame([
+            'id' => '42',
+            'query' => ['force' => '1'],
+        ], $response_value);
+    }
+
+    public function testControllerPatchDispatchesPathAndDecodedBody(): void
+    {
+        global $response_value;
+
+        $_POST = '{"name":"patched"}';
+        $_SERVER['PATH_INFO'] = '/42';
+        $_SERVER['REQUEST_METHOD'] = 'PATCH';
+        $_SERVER['CONTENT_TYPE'] = 'application/json';
+        $_SERVER['REQUEST_URI'] = '/42';
+        $_SERVER['REDIRECT_URL'] = '/42';
+
+        $this->app->controller('/', new RoutingRegressionController());
+
+        $this->assertSame([
+            'handler' => 'patch',
+            'id' => '42',
+            'body' => ['name' => 'patched'],
+        ], $response_value);
+    }
+
+    public function testControllerOptionsPrefersMethodSpecificCustomAction(): void
+    {
+        global $response_value;
+
+        $_GET = ['probe' => '1'];
+        $_SERVER['PATH_INFO'] = '/status';
+        $_SERVER['REQUEST_METHOD'] = 'OPTIONS';
+        $_SERVER['REQUEST_URI'] = '/status?probe=1';
+        $_SERVER['REDIRECT_URL'] = '/status';
+
+        $this->app->controller('/', new RoutingRegressionController());
+
+        $this->assertSame([
+            'handler' => 'optionsStatus',
+            'query' => ['probe' => '1'],
+        ], $response_value);
+    }
+
+    public function testControllerCustomHttpMethodFallsBackToCustomAction(): void
+    {
+        global $response_value;
+
+        $_GET = ['probe' => '1'];
+        $_SERVER['PATH_INFO'] = '/status';
+        $_SERVER['REQUEST_METHOD'] = 'VIEW';
+        $_SERVER['REQUEST_URI'] = '/status?probe=1';
+        $_SERVER['REDIRECT_URL'] = '/status';
+
+        $this->app->controller('/', new RoutingRegressionController());
+
+        $this->assertSame([
+            'handler' => 'status',
+            'query' => ['probe' => '1'],
         ], $response_value);
     }
 

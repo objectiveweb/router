@@ -22,6 +22,7 @@ All notable changes to Objectiveweb Router are documented in this file.
 
 ### Added
 
+- Routing regression coverage for raw regex captures, route extra arguments, controller regex constructor captures, immediate first-match dispatch/no-match behavior, DELETE, controller PATCH, OPTIONS method-specific actions, and custom HTTP-method actions.
 - Explicit `trusted.proxies` IP/CIDR policy for `X-Forwarded-Proto`, `X-Forwarded-Host`, and `X-Forwarded-Port`.
 - `Template::url()` delegates to the owning Router for proxy-aware URL generation inside PHP templates.
 - `PATCH()` route helper with the same Content-Type-aware request-body handling as POST and PUT.
