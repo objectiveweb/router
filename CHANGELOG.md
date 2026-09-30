@@ -36,6 +36,7 @@ All notable changes to Objectiveweb Router are documented in this file.
 
 ### Changed
 
+- `route()` and `controller()` now expose their supported additional arguments explicitly as `mixed ...$args` instead of relying on hidden `func_get_args()` behavior.
 - Tighten straightforward public Router method signatures with PHP 8.1 parameter and return types while keeping route callbacks `mixed` so invalid callbacks stay inside the controlled HTTP error boundary.
 - Keep `isAjax()` as a typed `bool` request helper and remove the unused private `_call()` helper and stale JMS import.
 - HEAD responses preserve GET representation semantics while suppressing the response body; 1xx, 204, 205, and 304 responses never carry a body.

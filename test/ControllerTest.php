@@ -13,6 +13,26 @@ use App\ProductsController;
 use PHPUnit\Framework\TestCase;
 use Test\Router;
 
+class VariadicController
+{
+    public function __construct(
+        private string $explicit,
+        private string $account,
+        private string $region
+    ) {
+    }
+
+    public function index(array $query): array
+    {
+        return [
+            'explicit' => $this->explicit,
+            'account' => $this->account,
+            'region' => $this->region,
+            'query' => $query,
+        ];
+    }
+}
+
 class ControllerTest extends TestCase
 {
     private Router $app;
@@ -60,6 +80,57 @@ class ControllerTest extends TestCase
         $this->assertSame(2, $method->getNumberOfParameters());
         $this->assertSame(1, $method->getNumberOfRequiredParameters());
         $this->assertSame('object', (string) $method->getReturnType());
+    }
+
+    public function testRouteExplicitArgumentsFollowRegexCaptures(): void
+    {
+        global $response_value;
+
+        $_SERVER['PATH_INFO'] = '/items/42';
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REQUEST_URI'] = '/items/42';
+        $_SERVER['REDIRECT_URL'] = '/items/42';
+
+        $this->app->route(
+            'GET /items/([0-9]+)',
+            static fn (string $id, string $source, int $limit): array => [
+                'id' => $id,
+                'source' => $source,
+                'limit' => $limit,
+            ],
+            'inventory',
+            25
+        );
+
+        $this->assertSame([
+            'id' => '42',
+            'source' => 'inventory',
+            'limit' => 25,
+        ], $response_value);
+    }
+
+    public function testControllerExplicitArgumentsPrecedeRegexCaptures(): void
+    {
+        global $response_value;
+
+        $_GET = ['active' => '1'];
+        $_SERVER['PATH_INFO'] = '/accounts/42/regions/us';
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REQUEST_URI'] = '/accounts/42/regions/us?active=1';
+        $_SERVER['REDIRECT_URL'] = '/accounts/42/regions/us';
+
+        $this->app->controller(
+            '/accounts/([0-9]+)/regions/([a-z]+)',
+            VariadicController::class,
+            'explicit'
+        );
+
+        $this->assertSame([
+            'explicit' => 'explicit',
+            'account' => '42',
+            'region' => 'us',
+            'query' => ['active' => '1'],
+        ], $response_value);
     }
 
     public function testIndex(): void

@@ -195,12 +195,15 @@ class Router
      * If the callback returns a value, Router sends it through the response pipeline.
      * @throws \Exception
      */
-    public function route(string $request, mixed $callback): void
-    {
+    public function route(
+        string $request,
+        mixed $callback,
+        mixed ...$args
+    ): void {
         $this->dispatchRoute(
             $request,
             $callback,
-            array_slice(func_get_args(), 2)
+            $args
         );
     }
 
@@ -307,11 +310,11 @@ class Router
      * @param ... mixed passed to controller instantiation
      * @throws \Exception
      */
-    public function controller(string $path, object|string $controller): void
-    {
-        $args = func_get_args();
-        array_splice($args, 0, 2);
-
+    public function controller(
+        string $path,
+        object|string $controller,
+        mixed ...$args
+    ): void {
         $re = $path === '/'
             ? '([A-Z]+) /(.*)'
             : sprintf("([A-Z]+) %s(?:$|/)(.*)", rtrim($path, '/'));
