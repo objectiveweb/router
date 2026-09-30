@@ -20,14 +20,14 @@ class CorsMiddleware implements RequestMiddlewareInterface
 
     public function before(string $method, string $path): void
     {
-        header('Access-Control-Allow-Origin: ' . $this->origin);
+        $this->emitHeader('Access-Control-Allow-Origin: ' . $this->origin);
 
         if ($this->credentials) {
-            header('Access-Control-Allow-Credentials: true');
+            $this->emitHeader('Access-Control-Allow-Credentials: true');
         }
 
         if ($this->exposeHeaders !== []) {
-            header(
+            $this->emitHeader(
                 'Access-Control-Expose-Headers: ' . implode(', ', $this->exposeHeaders)
             );
         }
@@ -40,7 +40,7 @@ class CorsMiddleware implements RequestMiddlewareInterface
             return;
         }
 
-        header(
+        $this->emitHeader(
             'Access-Control-Allow-Methods: ' . implode(', ', $this->methods)
         );
 
@@ -48,20 +48,30 @@ class CorsMiddleware implements RequestMiddlewareInterface
         if ($allowHeaders === null) {
             $requestedHeaders = trim((string) ($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS'] ?? ''));
             if ($requestedHeaders !== '') {
-                header('Access-Control-Allow-Headers: ' . $requestedHeaders);
+                $this->emitHeader('Access-Control-Allow-Headers: ' . $requestedHeaders);
             }
         } elseif ($allowHeaders !== []) {
-            header(
+            $this->emitHeader(
                 'Access-Control-Allow-Headers: ' . implode(', ', $allowHeaders)
             );
         }
 
-        http_response_code(204);
-        exit('');
+        $this->terminatePreflight();
     }
 
     public function after(string $method, string $path, mixed $response): mixed
     {
         return $response;
+    }
+
+    protected function emitHeader(string $header): void
+    {
+        header($header);
+    }
+
+    protected function terminatePreflight(): never
+    {
+        http_response_code(204);
+        exit('');
     }
 }
