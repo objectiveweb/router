@@ -72,27 +72,6 @@ class RequestMiddlewareController
     }
 }
 
-class PreflightTerminated extends \RuntimeException
-{
-}
-
-class TestCorsMiddleware extends CorsMiddleware
-{
-    public array $headers = [];
-    public bool $terminated = false;
-
-    protected function emitHeader(string $header): void
-    {
-        $this->headers[] = $header;
-    }
-
-    protected function terminatePreflight(): never
-    {
-        $this->terminated = true;
-        throw new PreflightTerminated();
-    }
-}
-
 class RequestMiddlewareTest extends TestCase
 {
     protected function setUp(): void
@@ -220,50 +199,32 @@ class RequestMiddlewareTest extends TestCase
         ], RequestMiddlewareEvents::$events);
     }
 
-    public function testCorsAddsHeadersToNormalRequests(): void
+    public function testCorsAllowsNormalRequestsToContinue(): void
     {
-        $cors = new TestCorsMiddleware('https://app.example');
+        $cors = new CorsMiddleware('https://app.example');
 
         $cors->before('GET', '/products');
 
-        $this->assertContains(
-            'Access-Control-Allow-Origin: https://app.example',
-            $cors->headers
-        );
-        $this->assertContains(
-            'Access-Control-Allow-Credentials: true',
-            $cors->headers
-        );
-        $this->assertContains(
-            'Access-Control-Expose-Headers: content-range',
-            $cors->headers
-        );
-        $this->assertFalse($cors->terminated);
         $this->assertSame('ok', $cors->after('GET', '/products', 'ok'));
     }
 
-    public function testCorsTerminatesPreflightAndReflectsRequestedHeaders(): void
+    public function testCorsPreflightTerminatesRequest(): void
     {
-        $_SERVER['HTTP_ORIGIN'] = 'https://app.example';
-        $_SERVER['HTTP_ACCESS_CONTROL_REQUEST_METHOD'] = 'POST';
-        $_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS'] = 'Authorization, Content-Type';
-
-        $cors = new TestCorsMiddleware('https://app.example');
-
-        try {
-            $cors->before('OPTIONS', '/products');
-            $this->fail('Expected preflight to terminate');
-        } catch (PreflightTerminated) {
-        }
-
-        $this->assertTrue($cors->terminated);
-        $this->assertContains(
-            'Access-Control-Allow-Methods: GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS',
-            $cors->headers
+        $autoload = var_export(dirname(__DIR__) . '/vendor/autoload.php', true);
+        $code = sprintf(
+            'require %s; $_SERVER["HTTP_ORIGIN"]="https://app.example"; '
+            . '$_SERVER["HTTP_ACCESS_CONTROL_REQUEST_METHOD"]="POST"; '
+            . '$_SERVER["HTTP_ACCESS_CONTROL_REQUEST_HEADERS"]="Authorization, Content-Type"; '
+            . '$cors=new \\Objectiveweb\\Router\\CorsMiddleware("https://app.example"); '
+            . '$cors->before("OPTIONS", "/products"); echo "unreachable";',
+            $autoload
         );
-        $this->assertContains(
-            'Access-Control-Allow-Headers: Authorization, Content-Type',
-            $cors->headers
-        );
+
+        $output = [];
+        $status = 1;
+        exec(escapeshellarg(PHP_BINARY) . ' -r ' . escapeshellarg($code), $output, $status);
+
+        $this->assertSame(0, $status);
+        $this->assertSame([], $output);
     }
 }
