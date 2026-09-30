@@ -229,7 +229,7 @@ class ResponseNegotiationTest extends TestCase
             '{"label":"WIDGETS","items":3}',
             $response['body']
         );
-        $this->assertTrue($response['vary_accept']);
+        $this->assertFalse($response['vary_accept']);
     }
 
     public function testRegisteredExceptionSerializerIsNotRedacted(): void
