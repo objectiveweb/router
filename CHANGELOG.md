@@ -55,6 +55,7 @@ All notable changes to Objectiveweb Router are documented in this file.
 
 ### Fixed
 
+- CORS wildcard origins now automatically disable credentials, preventing the browser-invalid `Access-Control-Allow-Origin: *` plus `Access-Control-Allow-Credentials: true` combination; integration coverage now includes explicit no-credentials, allow-header lists, and `setCors()` replacement behavior.
 - Unhandled 5xx responses now redact exception class/message by default while preserving server-side logging; `debug => true` restores detailed development responses, 4xx details remain visible, and explicitly registered exception serializers are unchanged.
 - Template rendering now uses typed paths/return values, `EXTR_SKIP` variable extraction, protected layout contents, and exception-safe output-buffer cleanup.
 - Middleware instantiation no longer passes a synthetic string through Dice's internal `share` argument; repeated middleware remain distinct while normally configured shared dependencies are still reused.

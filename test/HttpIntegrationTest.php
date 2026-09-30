@@ -193,6 +193,90 @@ class HttpIntegrationTest extends TestCase
         $this->assertSame('{"cors":true}', $response['body']);
     }
 
+    public function testWildcardCorsAutomaticallyDisablesCredentials(): void
+    {
+        $response = $this->request('GET', '/cors-wildcard', [
+            'Origin' => 'https://any.example',
+            'Accept' => 'application/json',
+        ]);
+
+        $this->assertSame(200, $response['status']);
+        $this->assertHeaderContains(
+            $response,
+            'access-control-allow-origin',
+            '*'
+        );
+        $this->assertHeaderMissing(
+            $response,
+            'access-control-allow-credentials'
+        );
+    }
+
+    public function testCorsCredentialsCanBeDisabledExplicitly(): void
+    {
+        $response = $this->request('GET', '/cors-no-credentials', [
+            'Origin' => 'https://client.example',
+            'Accept' => 'application/json',
+        ]);
+
+        $this->assertSame(200, $response['status']);
+        $this->assertHeaderContains(
+            $response,
+            'access-control-allow-origin',
+            'https://client.example'
+        );
+        $this->assertHeaderMissing(
+            $response,
+            'access-control-allow-credentials'
+        );
+    }
+
+    public function testCorsPreflightUsesExplicitAllowedHeaders(): void
+    {
+        $response = $this->request('OPTIONS', '/cors-explicit-headers', [
+            'Origin' => 'https://client.example',
+            'Access-Control-Request-Method' => 'POST',
+            'Access-Control-Request-Headers' => 'X-Ignored',
+        ]);
+
+        $this->assertSame(204, $response['status']);
+        $this->assertHeaderContains(
+            $response,
+            'access-control-allow-methods',
+            'GET, POST, OPTIONS'
+        );
+        $this->assertHeaderContains(
+            $response,
+            'access-control-allow-headers',
+            'Authorization, X-Request-ID'
+        );
+        $this->assertHeaderMissingValue(
+            $response,
+            'access-control-allow-headers',
+            'X-Ignored'
+        );
+    }
+
+    public function testSetCorsReplacesPreviouslyConfiguredCorsMiddleware(): void
+    {
+        $response = $this->request('GET', '/cors-set-replace', [
+            'Origin' => 'https://new.example',
+            'Accept' => 'application/json',
+        ]);
+
+        $this->assertSame(200, $response['status']);
+        $this->assertHeaderContains(
+            $response,
+            'access-control-allow-origin',
+            'https://new.example'
+        );
+        $this->assertHeaderMissingValue(
+            $response,
+            'access-control-allow-origin',
+            'https://old.example'
+        );
+    }
+
     public function testCorsPreflightTerminatesWith204AndActualHeaders(): void
     {
         $response = $this->request('OPTIONS', '/cors', [
@@ -378,6 +462,42 @@ class HttpIntegrationTest extends TestCase
             'headers' => $parsedHeaders,
             'body' => $responseBody,
         ];
+    }
+
+    /**
+     * @param array{headers:array<string,list<string>>} $response
+     */
+    private function assertHeaderMissing(
+        array $response,
+        string $name
+    ): void {
+        $this->assertArrayNotHasKey(
+            strtolower($name),
+            $response['headers'],
+            "Did not expect header $name"
+        );
+    }
+
+    /**
+     * @param array{headers:array<string,list<string>>} $response
+     */
+    private function assertHeaderMissingValue(
+        array $response,
+        string $name,
+        string $unexpected
+    ): void {
+        $values = $response['headers'][strtolower($name)] ?? [];
+
+        $this->assertNotContains(
+            $unexpected,
+            $values,
+            sprintf(
+                'Did not expect header %s: %s; got %s',
+                $name,
+                $unexpected,
+                implode(' | ', $values)
+            )
+        );
     }
 
     /**

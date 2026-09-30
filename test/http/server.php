@@ -3,6 +3,7 @@
 require dirname(__DIR__, 2) . '/vendor/autoload.php';
 
 use Objectiveweb\Router;
+use Objectiveweb\Router\CorsMiddleware;
 
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 
@@ -13,11 +14,50 @@ $_SERVER['PHP_SELF'] = '/index.php';
 $_SERVER['REDIRECT_URL'] = $path;
 $_SERVER['PATH_INFO'] = $path;
 
-$router = new Router(null, [
+$config = [
     'debug' => $path === '/error-500-debug',
-]);
+];
 
-$router->setCors('https://client.example');
+if ($path === '/cors-set-replace') {
+    $config['request.middlewares'] = [
+        CorsMiddleware::class => ['https://old.example'],
+    ];
+}
+
+$router = new Router(null, $config);
+
+switch ($path) {
+    case '/cors-wildcard':
+        $router->setCors('*');
+        break;
+
+    case '/cors-no-credentials':
+        $router->addRequestMiddleware(
+            CorsMiddleware::class,
+            ['https://client.example', false]
+        );
+        break;
+
+    case '/cors-explicit-headers':
+        $router->addRequestMiddleware(
+            CorsMiddleware::class,
+            [
+                'https://client.example',
+                true,
+                ['GET', 'POST', 'OPTIONS'],
+                ['Authorization', 'X-Request-ID'],
+            ]
+        );
+        break;
+
+    case '/cors-set-replace':
+        $router->setCors('https://new.example');
+        break;
+
+    default:
+        $router->setCors('https://client.example');
+        break;
+}
 
 $router->GET('/does-not-match-routing-order', static function (array $query): never {
     throw new RuntimeException('unmatched route executed');
@@ -41,6 +81,22 @@ $router->GET('/head', static function (array $query): string {
 
 $router->GET('/cors', static function (array $query): array {
     return ['cors' => true];
+});
+
+$router->GET('/cors-wildcard', static function (array $query): array {
+    return ['cors' => 'wildcard'];
+});
+
+$router->GET('/cors-no-credentials', static function (array $query): array {
+    return ['cors' => 'no-credentials'];
+});
+
+$router->GET('/cors-explicit-headers', static function (array $query): array {
+    return ['cors' => 'explicit-headers'];
+});
+
+$router->GET('/cors-set-replace', static function (array $query): array {
+    return ['cors' => 'set-replace'];
 });
 
 $router->GET('/status/204', static function (array $query): never {

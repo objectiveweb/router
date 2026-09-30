@@ -140,7 +140,8 @@ $router->addRequestMiddleware(
 
 CORS headers are emitted before controller resolution, so they also apply to controller errors. An OPTIONS request carrying both `Origin` and `Access-Control-Request-Method` is treated as a CORS preflight, receives the configured CORS headers, and terminates with HTTP 204 before controller resolution.
 
-The CORS middleware constructor also accepts optional credentials, allowed methods, allowed request headers, and exposed response headers:
+The CORS middleware constructor also accepts optional credentials, allowed methods, allowed request headers, and exposed response headers. When the allowed origin is `*`, credentials are automatically disabled because browsers reject `Access-Control-Allow-Origin: *` together with `Access-Control-Allow-Credentials: true`:
+
 
 ```php
 $router->addRequestMiddleware(

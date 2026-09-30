@@ -16,6 +16,12 @@ class CorsMiddleware implements RequestMiddlewareInterface
         private ?array $allowHeaders = null,
         private array $exposeHeaders = ['content-range']
     ) {
+        // Browsers reject wildcard origins when credentials are allowed.
+        // Keep the common CorsMiddleware('*') / setCors('*') configuration
+        // valid by automatically disabling credentials.
+        if ($this->origin === '*') {
+            $this->credentials = false;
+        }
     }
 
     public function before(string $method, string $path): void
