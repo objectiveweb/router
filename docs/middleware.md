@@ -179,7 +179,7 @@ Middleware has three supported control-flow patterns:
 
 1. **Continue normally.** Return the complete controller argument array from `before()`.
 2. **Reject the request.** Throw an exception with an HTTP status code. The exception remains inside Router's Throwable boundary and is converted to the negotiated error response.
-3. **Terminate immediately.** Call a terminating response helper such as `Router::respond()` or `Router::redirect()`, or call `exit()` directly.
+3. **Terminate immediately.** Call a terminating response helper such as `Router::respond()` or `$router->redirect()`, or call `exit()` directly.
 
 Example authorization guard:
 
@@ -202,7 +202,7 @@ Example hard termination:
 public function before(string $method, string $fn, array $params): array
 {
     if ($this->shouldRedirect()) {
-        \Objectiveweb\Router::redirect('/login', 302);
+        $this->router->redirect('/login', 302);
     }
 
     return $params;

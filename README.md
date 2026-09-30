@@ -185,7 +185,7 @@ $router->addRequestMiddleware(CorsMiddleware::class, [
 
 CORS preflight requests terminate before controller resolution.
 
-Middleware may reject a request by throwing an HTTP exception, or terminate immediately with `Router::respond()`, `Router::redirect()`, or `exit()`. Hard termination skips the controller, remaining middleware, and all `after()` hooks.
+Middleware may reject a request by throwing an HTTP exception, or terminate immediately with `Router::respond()`, `$router->redirect()`, or `exit()`. Hard termination skips the controller, remaining middleware, and all `after()` hooks.
 
 ## Dependency injection
 
@@ -222,6 +222,30 @@ class ProductsController
 $router->controller('/products', ProductsController::class);
 ```
 
+## Trusted proxies and URL generation
+
+`Router::url()` and `$router->redirect()` are instance methods because absolute URL generation depends on Router configuration.
+
+Forwarded headers are ignored by default. Configure the exact proxy addresses or CIDR ranges that are allowed to supply external request metadata:
+
+```php
+$router = new Router(null, [
+    'trusted.proxies' => [
+        '127.0.0.1',
+        '10.42.0.0/16',
+        '2001:db8:42::/48',
+    ],
+]);
+```
+
+Only when `REMOTE_ADDR` matches one of these entries can `X-Forwarded-Proto`, `X-Forwarded-Host`, and `X-Forwarded-Port` affect `url('self')` / `url()`. Otherwise Router uses the direct `HTTPS`, `HTTP_HOST`, and `SERVER_PORT` values.
+
+Objectiveweb Router intentionally does not interpret comma-separated proxy chains. A trusted proxy is expected to remove client-supplied forwarding headers and write one authoritative value. Comma-separated or malformed forwarded values are ignored.
+
+Private address ranges are not trusted automatically. Add only the actual proxy/network ranges controlled by the application infrastructure.
+
+This policy protects forwarded metadata; it does not validate the direct HTTP `Host` header. Applications that generate security-sensitive absolute links should also enforce allowed hosts at the web server/proxy layer.
+
 ## Templates
 
 Controller methods that return arrays may be rendered through PHP templates. The default template root is:
@@ -231,6 +255,14 @@ Controller methods that return arrays may be rendered through PHP templates. The
 ```
 
 For a controller bound to `/products`, Router looks for a method-specific template first and then an HTTP-method fallback. If both HTML and JSON representations are available, the request `Accept` header selects the representation.
+
+Templates created by Router expose URL generation through the Template object itself:
+
+```php
+<a href="<?= $this->url('/products') ?>">Products</a>
+```
+
+This delegates to the owning Router, so template URL generation uses the same trusted-proxy policy without injecting a reserved `$router` or `$url` variable into template data.
 
 You can configure the template root and layout when constructing the router:
 

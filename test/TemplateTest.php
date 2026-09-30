@@ -166,6 +166,45 @@ class TemplateTest extends TestCase
         $this->assertSame($level, ob_get_level());
     }
 
+    public function testRouterCreatedTemplateExposesUrlHelper(): void
+    {
+        $root = sys_get_temp_dir() . '/objectiveweb-router-template-url-' . bin2hex(random_bytes(8));
+        $templates = $root . '/templates';
+
+        mkdir($templates, 0777, true);
+        $this->directories[] = $templates;
+        $this->directories[] = $root;
+
+        $file = $templates . '/url.php';
+        file_put_contents($file, '<?= $this->url("/products") ?>');
+        $this->files[] = $file;
+
+        $_SERVER['SCRIPT_NAME'] = '/index.php';
+        $_SERVER['PATH_INFO'] = '/current';
+
+        $router = new BaseRouter($root);
+        $template = $router->template('url', []);
+
+        $this->assertInstanceOf(Template::class, $template);
+        $this->assertSame('/products', $template->render());
+    }
+
+    public function testStandaloneTemplateUrlRequiresOwningRouter(): void
+    {
+        $root = sys_get_temp_dir() . '/objectiveweb-router-template-no-router-' . bin2hex(random_bytes(8));
+        mkdir($root, 0777, true);
+        $this->directories[] = $root;
+
+        $file = $root . '/url.php';
+        file_put_contents($file, 'static');
+        $this->files[] = $file;
+
+        $template = new Template($root, 'url');
+
+        $this->expectException(\LogicException::class);
+        $template->url('/products');
+    }
+
     public function testMissingAcceptPrefersHtmlTemplate(): void
     {
         global $response_value;

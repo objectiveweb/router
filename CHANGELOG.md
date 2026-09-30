@@ -6,6 +6,7 @@ All notable changes to Objectiveweb Router are documented in this file.
 
 ### Breaking changes
 
+- `url()` and `redirect()` are now Router instance methods so URL generation can use per-router trusted-proxy configuration.
 - `create()` no longer exposes Dice's internal third `share` argument; the supported Router DI API is `create(string $name, array $args = []): object`.
 - Require PHP 8.1 or newer.
 - Router now composes Dice instead of extending it. Dependency injection remains available through `addRule()` and `create()`, but inherited Dice methods are no longer part of the Router API.
@@ -19,6 +20,8 @@ All notable changes to Objectiveweb Router are documented in this file.
 
 ### Added
 
+- Explicit `trusted.proxies` IP/CIDR policy for `X-Forwarded-Proto`, `X-Forwarded-Host`, and `X-Forwarded-Port`.
+- `Template::url()` delegates to the owning Router for proxy-aware URL generation inside PHP templates.
 - `PATCH()` route helper with the same Content-Type-aware request-body handling as POST and PUT.
 - Automatic HEAD fallback for `GET()` helpers and controller GET actions.
 - DI-backed global request middleware with declaration-order `before()` hooks before route matching and reverse-order `after()` unwinding when a route produces a response.

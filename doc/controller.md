@@ -175,6 +175,12 @@ Router tries the selected controller method template first and the HTTP-method t
 
 When both a template and JSON representation are available, `Accept` negotiation chooses between `text/html` and `application/json`.
 
+Templates created through Router have access to the owning Router's URL generator:
+
+```php
+<a href="<?= $this->url('/products') ?>">Products</a>
+```
+
 ## Errors
 
 If no controller method matches, Router raises a 404 response. Exceptions and PHP Errors raised while resolving or executing controllers and middleware are handled by the route Throwable boundary.

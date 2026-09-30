@@ -11,13 +11,25 @@ class Template
         private string $_root,
         private string $_template,
         private array $_data = [],
-        private ?string $_layout = null
+        private ?string $_layout = null,
+        private ?\Objectiveweb\Router $_router = null
     ) {
         $this->_template = $this->_root . DIRECTORY_SEPARATOR . $_template . '.php';
 
         if (!is_readable($this->_template)) {
             throw new \Exception("Cannot read $this->_template", 500);
         }
+    }
+
+    public function url(?string $path = null): string
+    {
+        if ($this->_router === null) {
+            throw new \LogicException(
+                'Template URL generation requires a Template created by Router::template()'
+            );
+        }
+
+        return $this->_router->url($path);
     }
 
     /**

@@ -36,11 +36,24 @@ class Router
         $defaults = [
             'request.middlewares' => [],
             'middlewares' => [],
+            'trusted.proxies' => [],
             'template.root' => $_root . '/templates',
             'template.layout' => null,
         ];
 
         $this->config = array_merge($defaults, $config);
+
+        if (!is_array($this->config['trusted.proxies'])) {
+            throw new \InvalidArgumentException('trusted.proxies must be an array');
+        }
+
+        foreach ($this->config['trusted.proxies'] as $proxy) {
+            if (!is_string($proxy) || !static::isValidProxyRange($proxy)) {
+                throw new \InvalidArgumentException(
+                    sprintf('Invalid trusted proxy address or CIDR: %s', is_scalar($proxy) ? (string) $proxy : get_debug_type($proxy))
+                );
+            }
+        }
 
         foreach ($this->config['request.middlewares'] as $class => $args) {
             if (is_int($class)) {
@@ -156,12 +169,12 @@ class Router
         if (is_array($names)) {
             foreach ($names as $name) {
                 if (is_readable($_root . DIRECTORY_SEPARATOR . $name . '.php')) {
-                    return new Template($_root, $name, $_data, $_layout);
+                    return new Template($_root, $name, $_data, $_layout, $this);
                 }
             }
         } else {
             if (is_readable($_root . DIRECTORY_SEPARATOR . $names . '.php')) {
-                return new Template($_root, $names, $_data, $_layout);
+                return new Template($_root, $names, $_data, $_layout, $this);
             }
         }
 
@@ -673,47 +686,216 @@ class Router
      * @param $str
      * @return string
      */
-    public static function url($str = null)
+    public function url(?string $str = null): string
     {
-        if ($str == 'self' || empty($str)) {
-            if (
-                isset($_SERVER['HTTPS']) && ($_SERVER['HTTPS'] == 'on' || $_SERVER['HTTPS'] == 1)
-                || isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] == 'https'
-            ) {
-                $protocol = 'https://';
-            } else {
-                $protocol = 'http://';
-            }
+        if ($str === 'self' || empty($str)) {
+            $trustedProxy = $this->isTrustedProxy($_SERVER['REMOTE_ADDR'] ?? '');
 
-            $url = $protocol . $_SERVER['HTTP_HOST'];
+            $protocol = $this->requestProtocol();
+            $hostHeader = $_SERVER['HTTP_HOST'] ?? ($_SERVER['SERVER_NAME'] ?? 'localhost');
+            $port = isset($_SERVER['SERVER_PORT']) ? (int) $_SERVER['SERVER_PORT'] : null;
 
-            // use port if non default
-            $port = isset($_SERVER['HTTP_X_FORWARDED_PORT'])
-                ? $_SERVER['HTTP_X_FORWARDED_PORT']
-                : (isset($_SERVER['SERVER_PORT']) ? $_SERVER['SERVER_PORT'] : '');
-            $url .=
-                (($protocol === 'http://' && $port != 80) || ($protocol === 'https://' && $port != 443))
-                    ? ':' . $port
-                    : '';
-
-            $url .= !empty($_SERVER['SCRIPT_URL']) ? $_SERVER['SCRIPT_URL'] : $_SERVER['PHP_SELF'];
-
-            // return current url
-            return $url;
-        } else {
-
-            if (!empty($_SERVER['PATH_INFO'])) {
-                if (!empty($_SERVER['SCRIPT_URL'])) {
-                    $PATH = substr($_SERVER['SCRIPT_URL'], 0, -1 * strlen($_SERVER['PATH_INFO']));
-                } else {
-                    $PATH = dirname($_SERVER['SCRIPT_NAME']);
+            if ($trustedProxy) {
+                $forwardedProto = static::forwardedHeader('HTTP_X_FORWARDED_PROTO');
+                if ($forwardedProto !== null && in_array(strtolower($forwardedProto), ['http', 'https'], true)) {
+                    $protocol = strtolower($forwardedProto);
                 }
-            } else {
-                $PATH = dirname($_SERVER['SCRIPT_NAME']);
+
+                $forwardedHost = static::forwardedHeader('HTTP_X_FORWARDED_HOST');
+                if ($forwardedHost !== null && static::isValidHostHeader($forwardedHost)) {
+                    $hostHeader = $forwardedHost;
+                }
+
+                $forwardedPort = static::forwardedHeader('HTTP_X_FORWARDED_PORT');
+                if ($forwardedPort !== null && ctype_digit($forwardedPort)) {
+                    $candidatePort = (int) $forwardedPort;
+                    if ($candidatePort >= 1 && $candidatePort <= 65535) {
+                        $port = $candidatePort;
+                    }
+                }
             }
 
-            return ($PATH == '/' ? '' : $PATH) . ($str[0] == '/' ? $str : '/' . $str);
+            [$host, $hostPort] = static::splitHostAndPort($hostHeader);
+
+            if ($trustedProxy && isset($forwardedHost) && $forwardedHost !== null && $hostPort !== null) {
+                $port = $hostPort;
+            } elseif (!$trustedProxy && $hostPort !== null) {
+                $port = $hostPort;
+            } elseif ($trustedProxy && isset($forwardedProto) && $forwardedProto !== null && !isset($forwardedPort)) {
+                // A proxy that supplies the external scheme but no explicit
+                // external port is assumed to use that scheme's default port.
+                $port = $protocol === 'https' ? 443 : 80;
+            }
+
+            $url = $protocol . '://' . $host;
+
+            if (
+                $port !== null
+                && !(($protocol === 'http' && $port === 80) || ($protocol === 'https' && $port === 443))
+            ) {
+                $url .= ':' . $port;
+            }
+
+            $url .= !empty($_SERVER['SCRIPT_URL'])
+                ? $_SERVER['SCRIPT_URL']
+                : ($_SERVER['PHP_SELF'] ?? $_SERVER['SCRIPT_NAME'] ?? '/');
+
+            return $url;
         }
+
+        if (!empty($_SERVER['PATH_INFO'])) {
+            if (!empty($_SERVER['SCRIPT_URL'])) {
+                $path = substr($_SERVER['SCRIPT_URL'], 0, -1 * strlen($_SERVER['PATH_INFO']));
+            } else {
+                $path = dirname($_SERVER['SCRIPT_NAME']);
+            }
+        } else {
+            $path = dirname($_SERVER['SCRIPT_NAME']);
+        }
+
+        return ($path === '/' ? '' : $path) . ($str[0] === '/' ? $str : '/' . $str);
+    }
+
+    private function requestProtocol(): string
+    {
+        return isset($_SERVER['HTTPS'])
+            && ($_SERVER['HTTPS'] === 'on' || $_SERVER['HTTPS'] === '1' || $_SERVER['HTTPS'] === 1)
+            ? 'https'
+            : 'http';
+    }
+
+    private function isTrustedProxy(string $remoteAddress): bool
+    {
+        if ($remoteAddress === '') {
+            return false;
+        }
+
+        foreach ($this->config['trusted.proxies'] as $trustedProxy) {
+            if (static::addressMatchesRange($remoteAddress, $trustedProxy)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function isValidProxyRange(string $range): bool
+    {
+        [$network, $prefix] = array_pad(explode('/', $range, 2), 2, null);
+        $packed = @inet_pton($network);
+        if ($packed === false) {
+            return false;
+        }
+
+        if ($prefix === null) {
+            return true;
+        }
+
+        if ($prefix === '' || !ctype_digit($prefix)) {
+            return false;
+        }
+
+        $bits = strlen($packed) * 8;
+
+        return (int) $prefix >= 0 && (int) $prefix <= $bits;
+    }
+
+    private static function addressMatchesRange(string $address, string $range): bool
+    {
+        $packedAddress = @inet_pton($address);
+        if ($packedAddress === false) {
+            return false;
+        }
+
+        [$network, $prefix] = array_pad(explode('/', $range, 2), 2, null);
+        $packedNetwork = @inet_pton($network);
+        if ($packedNetwork === false || strlen($packedNetwork) !== strlen($packedAddress)) {
+            return false;
+        }
+
+        if ($prefix === null) {
+            return $packedAddress === $packedNetwork;
+        }
+
+        $prefixBits = (int) $prefix;
+        $wholeBytes = intdiv($prefixBits, 8);
+        $remainingBits = $prefixBits % 8;
+
+        if (
+            $wholeBytes > 0
+            && substr($packedAddress, 0, $wholeBytes) !== substr($packedNetwork, 0, $wholeBytes)
+        ) {
+            return false;
+        }
+
+        if ($remainingBits === 0) {
+            return true;
+        }
+
+        $mask = (0xff << (8 - $remainingBits)) & 0xff;
+
+        return (ord($packedAddress[$wholeBytes]) & $mask)
+            === (ord($packedNetwork[$wholeBytes]) & $mask);
+    }
+
+    private static function forwardedHeader(string $name): ?string
+    {
+        if (!isset($_SERVER[$name])) {
+            return null;
+        }
+
+        $value = trim((string) $_SERVER[$name]);
+
+        // Objectiveweb Router intentionally does not interpret proxy chains.
+        // The trusted proxy must replace forwarded headers with one authoritative value.
+        if (
+            $value === ''
+            || str_contains($value, ',')
+            || preg_match('/[\r\n]/', $value)
+        ) {
+            return null;
+        }
+
+        return $value;
+    }
+
+    private static function isValidHostHeader(string $host): bool
+    {
+        return $host !== ''
+            && !str_contains($host, ',')
+            && !preg_match('/[\s\x00-\x1f\x7f\/\\]/', $host);
+    }
+
+    /**
+     * @return array{0:string,1:?int}
+     */
+    private static function splitHostAndPort(string $hostHeader): array
+    {
+        $hostHeader = trim($hostHeader);
+
+        // Bracketed IPv6 literal, optionally followed by a port.
+        if (str_starts_with($hostHeader, '[')) {
+            if (preg_match('/^(\[[0-9a-fA-F:.]+\])(?::([0-9]+))?$/', $hostHeader, $matches)) {
+                return [
+                    $matches[1],
+                    isset($matches[2]) ? (int) $matches[2] : null,
+                ];
+            }
+
+            return [$hostHeader, null];
+        }
+
+        if (substr_count($hostHeader, ':') === 1) {
+            [$host, $port] = explode(':', $hostHeader, 2);
+            if ($port !== '' && ctype_digit($port)) {
+                $portNumber = (int) $port;
+                if ($portNumber >= 1 && $portNumber <= 65535) {
+                    return [$host, $portNumber];
+                }
+            }
+        }
+
+        return [$hostHeader, null];
     }
 
     private static function requestContentType(): string
@@ -795,16 +977,16 @@ class Router
      *                  307 Temporary Redirect - In this case, the request should be repeated with another URI; however, future requests should still use the original URI.
      *                  308 Permanent Redirect - The request and all future requests should be repeated using another URI.
      */
-    public static function redirect($to, $code = 301)
+    public function redirect(string $to, int $code = 301): never
     {
         header("HTTP/1.1 $code");
 
-        if(preg_match('#^https?://#', $to)) {
+        if (preg_match('#^https?://#', $to)) {
             header("Location: $to");
+        } else {
+            header('Location: ' . $this->url($to));
         }
-        else {
-            header('Location: ' . Router::url($to));
-        }
+
         exit();
     }
 
