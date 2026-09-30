@@ -6,6 +6,8 @@ All notable changes to Objectiveweb Router are documented in this file.
 
 ### Breaking changes
 
+- Remove the legacy static `Router::render()` helper; PHP templates are represented by `Template` objects created through `$router->template()` or controller template lookup.
+- Controller template directories no longer auto-include `_functions.php`; application helpers must be loaded explicitly by the application/bootstrap or provided through template objects/data.
 - `url()` and `redirect()` are now Router instance methods so URL generation can use per-router trusted-proxy configuration.
 - `create()` no longer exposes Dice's internal third `share` argument; the supported Router DI API is `create(string $name, array $args = []): object`.
 - Require PHP 8.1 or newer.
@@ -34,6 +36,8 @@ All notable changes to Objectiveweb Router are documented in this file.
 
 ### Changed
 
+- Tighten straightforward public Router method signatures with PHP 8.1 parameter and return types while keeping route callbacks `mixed` so invalid callbacks stay inside the controlled HTTP error boundary.
+- Keep `isAjax()` as a typed `bool` request helper and remove the unused private `_call()` helper and stale JMS import.
 - HEAD responses preserve GET representation semantics while suppressing the response body; 1xx, 204, 205, and 304 responses never carry a body.
 - Documentation now explicitly defines Objectiveweb Router as an immediate regex dispatcher rather than a route-table dispatcher.
 - `setCors()` now registers the built-in request-level `CorsMiddleware`; controller-specific CORS branching has been removed.
@@ -154,6 +158,42 @@ The default template directory is now:
 Passing an explicit Router root continues to override this default.
 
 Controller templates receive array responses as their data context. Other response types bypass template lookup and continue through the response pipeline.
+
+### Template rendering and helpers
+
+The v2 static file renderer has been removed:
+
+```php
+// v2
+$html = Router::render($file, $data);
+```
+
+Use a Router-owned `Template` in v3:
+
+```php
+$template = $router->template('page', $data);
+$html = $template?->render();
+```
+
+Controller template lookup creates the same `Template` objects automatically.
+
+v2 also loaded a sibling `_functions.php` automatically before rendering a controller template. v3 does not execute implicit helper files. Load application helpers from the bootstrap/autoloader instead, or expose behavior explicitly through template data or the Template API. Router-owned templates already provide `$this->url()`.
+
+### URL generation and redirects
+
+`url()` and `redirect()` are no longer static:
+
+```php
+// v2
+Router::url('/products');
+Router::redirect('/login');
+
+// v3
+$router->url('/products');
+$router->redirect('/login');
+```
+
+Relative redirect targets still use Router URL generation. Absolute `http://` and `https://` redirect targets are now passed through unchanged instead of being treated as application-relative paths. Absolute current-request URL generation uses the v3 `trusted.proxies` policy documented in the README.
 
 ### Tests and development
 

@@ -2,7 +2,6 @@
 
 namespace Objectiveweb;
 
-use JMS\Serializer\SerializationContext;
 use Objectiveweb\Router\CorsMiddleware;
 use Objectiveweb\Router\Middleware;
 use Objectiveweb\Router\Template;
@@ -10,7 +9,7 @@ use Objectiveweb\Router\Template;
 class Router
 {
 
-    private static $serializers = [];
+    private static array $serializers = [];
 
     private \Dice\Dice $dice;
     private array $requestMiddlewares = [];
@@ -18,7 +17,7 @@ class Router
     private bool $requestMiddlewaresStarted = false;
     private bool $requestMiddlewaresFinished = false;
 
-    function __construct(?string $_root = null, private array $config = [])
+    public function __construct(?string $_root = null, private array $config = [])
     {
         $this->dice = new \Dice\Dice();
 
@@ -131,17 +130,17 @@ class Router
         return $response;
     }
 
-    static function addSerializer($type, $callback)
+    public static function addSerializer(string $type, callable $callback): void
     {
         self::$serializers[$type] = $callback;
     }
 
-    static function hasSerializer($type)
+    public static function hasSerializer(string $type): bool
     {
         return !empty(self::$serializers[$type]);
     }
 
-    public function addRule($name, array $rule): void
+    public function addRule(string $name, array $rule): void
     {
         $this->dice = $this->dice->addRule($name, $rule);
     }
@@ -160,7 +159,7 @@ class Router
      * @return Template|null
      * @throws \Exception
      */
-    public function template($names, ?array $_data, string|null $_layout = null): Template|null
+    public function template(string|array $names, ?array $_data = null, ?string $_layout = null): ?Template
     {
         $_root = $this->config["template.root"];
         $_layout = $_layout ?? $this->config["template.layout"];
@@ -188,12 +187,12 @@ class Router
      * @param $request - HTTP Request Method + Request-URI Regex e.g. "GET /something/([0-9]+)/?"
      * @param $callback - A valid callback. Regex capture groups are passed as arguments to this function, using
      *   array('Namespace\ClassNameAsString', 'method') triggers the dependency injector to instantiate the given class
-     * @return void or data - If the callback returns something, it's responded accordingly, otherwise, nothing happens
+     * If the callback returns a value, Router sends it through the response pipeline.
      * @throws \Exception
      */
-    public function route($request, $callback)
+    public function route(string $request, mixed $callback): void
     {
-        return $this->dispatchRoute(
+        $this->dispatchRoute(
             $request,
             $callback,
             array_slice(func_get_args(), 2)
@@ -297,29 +296,13 @@ class Router
     }
 
     /**
-     * Runs $callable with arguments if it's callable, otherwise, does nothing
-     * @param $callable
-     * @return mixed|null
-     */
-    private function _call($callable)
-    {
-        if (is_callable($callable)) {
-            $args = func_get_args();
-            array_shift($args);
-            return call_user_func_array($callable, $args);
-        }
-
-        return null;
-    }
-
-    /**
-     * Binds a controller get/post/put/destroy or custom functions to HTTP methods
+     * Binds a controller to HTTP-method or custom action methods.
      * @param $path String path prefix (/path)
      * @param $controller mixed class name or class
      * @param ... mixed passed to controller instantiation
      * @throws \Exception
      */
-    public function controller($path, $controller)
+    public function controller(string $path, object|string $controller): void
     {
         $args = func_get_args();
         array_splice($args, 0, 2);
@@ -574,7 +557,7 @@ class Router
      * @param callable $callback function(match[1], match[2], ..., $_GET)
      * @throws \Exception
      */
-    public function DELETE($path, $callback)
+    public function DELETE(string $path, mixed $callback): void
     {
         $this->dispatchRoute(
             "DELETE $path",
@@ -590,7 +573,7 @@ class Router
      * @param callable $callback function(match[1], match[2], ..., $_GET)
      * @throws \Exception
      */
-    public function GET($path, $callback)
+    public function GET(string $path, mixed $callback): void
     {
         $this->dispatchRoute(
             "(?:GET|HEAD) $path",
@@ -606,7 +589,7 @@ class Router
      * @param callable $callback function(match[1], match[2], ..., <$post_body>)
      * @throws \Exception
      */
-    public function POST($path, $callback)
+    public function POST(string $path, mixed $callback): void
     {
         $this->dispatchRoute(
             "POST $path",
@@ -622,7 +605,7 @@ class Router
      * @param callable $callback function(match[1], match[2], ..., <$post_body>)
      * @throws \Exception
      */
-    public function PUT($path, $callback)
+    public function PUT(string $path, mixed $callback): void
     {
         $this->dispatchRoute(
             "PUT $path",
@@ -638,7 +621,7 @@ class Router
      * @param callable $callback function(match[1], match[2], ..., <$request_body>)
      * @throws \Exception
      */
-    public function PATCH($path, $callback)
+    public function PATCH(string $path, mixed $callback): void
     {
         $this->dispatchRoute(
             "PATCH $path",
@@ -650,7 +633,7 @@ class Router
     /**
      * Bootstraps an endpoint based on $namespace
      */
-    public function run($namespace)
+    public function run(string $namespace): void
     {
 
         $router = $this;
@@ -944,7 +927,7 @@ class Router
         }
     }
 
-    public static function parse_post_body($decoded = true, $as_array = true)
+    public static function parse_post_body(bool $decoded = true, bool $as_array = true): mixed
     {
         $contentType = static::requestContentType();
 
@@ -1095,7 +1078,7 @@ class Router
      *
      * @return array{body:string, content_type:?string, vary_accept:bool}
      */
-    protected static function prepareResponse($content, ?string $accept = null): array
+    protected static function prepareResponse(mixed $content, ?string $accept = null): array
     {
         if ($content instanceof \Throwable && !self::hasSerializer(get_class($content))) {
             $contentType = static::negotiateContentType(
@@ -1208,7 +1191,7 @@ class Router
         ];
     }
 
-    private static function serializeJson($content, ?object $obj = null): string
+    private static function serializeJson(mixed $content, ?object $obj = null): string
     {
         if ($obj && self::hasSerializer(get_class($obj))) {
             $content = self::$serializers[get_class($obj)]($content);
@@ -1238,7 +1221,7 @@ class Router
      * @return array{status:int, body:string, content_type:?string, vary_accept:bool}
      */
     protected static function prepareHttpResponse(
-        $content,
+        mixed $content,
         int $code = 200,
         ?string $accept = null,
         ?string $requestMethod = null
@@ -1273,7 +1256,7 @@ class Router
         ];
     }
 
-    public static function respond($content, $code = 200)
+    public static function respond(mixed $content, int $code = 200)
     {
         $response = static::prepareHttpResponse(
             $content,
@@ -1297,8 +1280,9 @@ class Router
         exit($response['body']);
     }
 
-    public static function isAjax()
+    public static function isAjax(): bool
     {
-        return isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+        return isset($_SERVER['HTTP_X_REQUESTED_WITH'])
+            && strtolower((string) $_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
     }
 }

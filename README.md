@@ -54,6 +54,12 @@ The verb helpers append request data after regex captures:
 
 Callbacks may also be written as `[Controller::class, 'method']`. Class-name callbacks are instantiated through Dice before invocation.
 
+## Public API notes
+
+Router v3 uses explicit PHP 8.1 types on its straightforward public APIs. Route callbacks intentionally remain `mixed`: callback validation happens inside the route Throwable boundary so invalid callbacks become controlled HTTP responses rather than uncaught argument `TypeError` failures.
+
+`Router::isAjax(): bool` remains available as a convenience check for `X-Requested-With: XMLHttpRequest`.
+
 ## Routing model
 
 Objectiveweb Router is an **immediate regex dispatcher**, not a complete route-table dispatcher. Calls to `route()`, the HTTP verb helpers, and `controller()` evaluate regular expressions against the current request and may execute immediately; Router does not first collect every application route into a route table.
