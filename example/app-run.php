@@ -1,34 +1,27 @@
 <?php
-// Objectiveweb Router
-// run() example
 
-// library dependencies
-// in real applications you should use an autoloader
-include '../vendor/level-2/dice/Dice.php';
-include '../src/Router.php';
+require dirname(__DIR__) . '/vendor/autoload.php';
 
-// application dependencies
-include 'App/HomeController.php';
-include 'App/ProductsController.php';
-include 'App/DB/ProductsRepository.php';
+require __DIR__ . '/App/Model/Product.php';
+require __DIR__ . '/App/HomeController.php';
+require __DIR__ . '/App/ProductsController.php';
+require __DIR__ . '/App/DB/ProductsRepository.php';
 
+use App\Model\Product;
 use Objectiveweb\Router;
 
 $app = new Router();
 
-// app configuration
 $app->addRule('App\DB\ProductsRepository', [
     'shared' => true,
     'constructParams' => [
-        array(
-            array('name' => "Cassete Recorder", 'sku' => 1, 'price' => 100.00),
-            array('name' => "Tractor Beam", 'sku' => 2, 'price' => 7.99)
-        )
-    ]
+        [
+            new Product(1, 'Cassette Recorder', 100.00),
+            new Product(2, 'Tractor Beam', 7.99),
+        ],
+    ],
 ]);
 
-
-// Starts the application on the App namespace
-// Requests to /products will be mapped to App\ProductsController
-// Root and other requests are mapped to App\HomeController
+// Requests to /products map to App\ProductsController.
+// Root and unmatched controller names fall back to App\HomeController.
 $app->run('App');

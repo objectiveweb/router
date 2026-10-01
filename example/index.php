@@ -1,71 +1,55 @@
 <?php
 
-// library dependencies
-// in real applications you should use an autoloader
-include '../vendor/level-2/dice/Dice.php';
-include '../src/Router.php';
+require dirname(__DIR__) . '/vendor/autoload.php';
 
-// application dependencies
-include 'App/ProductsController.php';
-include 'App/DB/ProductsRepository.php';
+require __DIR__ . '/App/Model/Product.php';
+require __DIR__ . '/App/ProductsController.php';
+require __DIR__ . '/App/DB/ProductsRepository.php';
 
+use App\Model\Product;
 use Objectiveweb\Router;
 
 $app = new Router();
 
-// app configuration
 $app->addRule('App\DB\ProductsRepository', [
     'shared' => true,
     'constructParams' => [
-        array(
-            array('name' => "Cassete Recorder", 'sku' => 1, 'price' => 100.00),
-            array('name' => "Tractor Beam", 'sku' => 2, 'price' => 7.99)
-        )
-    ]
+        [
+            new Product(1, 'Cassette Recorder', 100.00),
+            new Product(2, 'Tractor Beam', 7.99),
+        ],
+    ],
 ]);
 
-$app->GET("/", function() {
-  return <<< EOF
-  <html>
-  <body>
-  <h1>Router Example page</h1>
-  
-  <h2>ProductsController</h2>
-  <ul>
-   <li><a href="index.php/products">Index: Products listing (json)</a></li>
-   <li><a href="index.php/products/1">Path variable: Product detail</a></li>
-   <li><a href="index.php/products/sale">Custom method: Products with 10% discount</a></li>
-   <li><a href="index.php/products/sale/50">Custom method with path parameters: Products with 50% discount</a></li>
-   <li><a href="index.php/products/anything/really?error=1">before(): Check error trigger</a></li>
-EOF;
+$app->GET('/?', function (array $query) {
+    return <<<'HTML'
+<!doctype html>
+<html>
+<body>
+<h1>Router example</h1>
+
+<h2>ProductsController</h2>
+<ul>
+    <li><a href="index.php/products">Product listing</a></li>
+    <li><a href="index.php/products/1">Product detail</a></li>
+    <li><a href="index.php/products/sale">HTTP-method-specific custom route</a></li>
+    <li><a href="index.php/products/sale/50">Custom route with path parameter</a></li>
+</ul>
+</body>
+</html>
+HTML;
 });
 
-/**
- * Router::controller will bind a path to a class, using the following schema
+/*
+ * Controller mapping examples:
  *
- * GET /    => $controller->index();
- * POST /   => $controller->post($decoded_post_body);
- * PUT /    => $controller->put($decoded_post_body);
- * PATCH /    => $controller->patch($decoded_post_body);
+ * GET    /products            -> index($_GET)
+ * GET    /products/1          -> get('1', $_GET)
+ * POST   /products            -> post($body)
+ * PUT    /products/1          -> put('1', $body)
+ * GET    /products/sale       -> getSale($_GET), then sale($_GET), then get('sale', $_GET)
  *
- * Path parameters
- *
- * GET|PATCH|POST|PUT|DELETE /path[/path1/path2/...]
- *  if $controller->path() exists, calls $controller->path($path1, $path2, ...)
- *
- * When $controller->path() does not exist
- *
- * GET /path[/path1/path2/...]
- *  calls $controller->get($path, path1, $path1, ..., $_GET);
- * DELETE /path[/path1/path2/...]
- *  calls $controller->delete($path, path1, $path1, ..., $_GET);
- * POST /path[/path1/path2/...]
- *  $controller->post($path, path1, $path1, ..., $decoded_post_body);
- * PUT /path[/path1/path2/...]
- *  calls $controller->put($path, path1, $path1, ..., $decoded_post_body);
- * PATCH /path[/path1/path2/...]
- *  calls $controller->patch($path, path1, $path1, ..., $decoded_post_body);
- *
- * Additional parameters are passed to the class constructor
+ * Additional arguments passed to controller() are available to the
+ * controller constructor through Dice.
  */
-$app->controller("/products", 'App\ProductsController', "Custom Name");
+$app->controller('/products', App\ProductsController::class, 'Custom Name');

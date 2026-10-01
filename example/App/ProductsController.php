@@ -2,119 +2,85 @@
 
 namespace App;
 
+use App\DB\ProductsRepository;
 use App\Model\Product;
 
-class ProductsController {
-    
-  private $name;
-  
-  // emulate authentication for tests
-  public $auth = false;
-  
-  // ProductsRepository will be injected automatically
-  // $name is a random parameter to demonstrate additional parameters
-  function __construct(\App\DB\ProductsRepository $products, $name = "Products Controller") {
-      $this->products = $products;
-      $this->name = $name;
-  }
-  
-  /** 
-   * (optional) runs before every request
-   */
-  function before() {
-    if(isset($_GET['error'])) {
-      // trigger an error (could be testing for auth, permissions, etc)
-      throw new \Exception("error trigger detected", 500);
+class ProductsController
+{
+    public function __construct(
+        private ProductsRepository $products,
+        private string $name = 'Products Controller'
+    ) {
     }
-  }
-  
-  /**
-   * (optional) triggered before every POST request
-   *
-   * You can also use beforeGet(), beforePut(), beforeDelete() and so on
-   * Important: before() will also be called before these methods
-   */
-  function beforePost() {
-    if(!$this->auth) {
-      throw new \Exception("Unauthorized", 403);
+
+    /**
+     * GET /
+     */
+    public function index(): array
+    {
+        return $this->products->index();
     }
-  }
-  
-  // rest callbacks
-  
-  /**
-   * GET /
-   */
-  function index() {
-    return $this->products->index();
-  }
-  
-  /**
-   * GET /sku
-   */
-  function get($sku) {
-    return $this->products->get($sku);
-  }
-  
-  /**
-   * POST / Example
-   *
-   * You may also handle other methods defining each function (put, patch, options, head, ...)
-   */
-  function post(\App\Model\Product $product) {
-      $this->products->post($product);
-      
-      return $product;
-  }
-  
-  function put($sku, array $data) {
-      $product = $this->get($sku);
-      if(!$product) {
-          throw new \Exception("Product not found!", 404);
-      }
-      
-      foreach($data as $k => $v) {
-          $product->$k = $v;
-      }
-      
-      return $product;
-  }
-    
-  /**
-   * This function will always override sale() for GET requests
-   * The sale() function will act as a fallback for non-defined method (i.e. VIEW /products/sale)
-   */
-  function getSale() {
-    return $this->sale(90);
-  }
-  
-  /**
-   * Handles requests to /sale
-   */
-  function sale($price = 12345) {
-      $products = $this->products->index();
-      $products[0]->price = $price;
-      
-      return $products;
-  }
-  
-  /**
-   * Handles a HEAD /sale request
-   */
-  function headSale() {
-    header("X-Sale: true");
-    return "";
-  }
-  
-  /**
-   * Handles an OPTIONS /sale request
-   */
-  function optionsSale() {
-    return $this->products->count();
-  }
-  
-    
-    function hello() {
+
+    /**
+     * GET /sku
+     */
+    public function get($sku): Product
+    {
+        return $this->products->get($sku);
+    }
+
+    /**
+     * POST /
+     *
+     * JMS Serializer can deserialize a JSON body into Product when installed.
+     */
+    public function post(Product $product): Product
+    {
+        $this->products->post($product);
+
+        return $product;
+    }
+
+    /**
+     * PUT /sku
+     */
+    public function put($sku, array $data): Product
+    {
+        $product = $this->get($sku);
+
+        foreach ($data as $key => $value) {
+            $product->$key = $value;
+        }
+
+        return $product;
+    }
+
+    /**
+     * GET /sale resolves to getSale() before sale().
+     */
+    public function getSale(): array
+    {
+        return $this->sale(90);
+    }
+
+    /**
+     * Fallback custom method, e.g. VIEW /sale/50.
+     */
+    public function sale($price = 12345): array
+    {
+        $products = $this->products->index();
+        $products[0]->price = $price;
+
+        return $products;
+    }
+
+    public function optionsSale(): int
+    {
+        return $this->products->count();
+    }
+
+    public function hello(): string
+    {
         return "Hello $this->name";
     }
 }
